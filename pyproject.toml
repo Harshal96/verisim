@@ -3,10 +3,32 @@ name = "verisim"
 version = "0.1.0"
 description = "Context-aware synthetic data generation for coherent Pydantic domain models."
 readme = "README.md"
+authors = [{ name = "Harshal Parekh" }]
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
 requires-python = ">=3.11"
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Topic :: Software Development :: Testing",
+]
 dependencies = [
   "pydantic>=2.7,<3",
 ]
+
+[project.urls]
+Homepage = "https://github.com/Harshal96/verisim"
+Repository = "https://github.com/Harshal96/verisim"
+Issues = "https://github.com/Harshal96/verisim/issues"
 
 [project.optional-dependencies]
 lite = []

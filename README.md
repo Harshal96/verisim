@@ -2,6 +2,8 @@
 
 Context-aware synthetic data for Python.
 
+The name comes from "verisimilitude," meaning "the appearance of being real."
+
 Verisim generates whole, coherent Pydantic domain objects instead of unrelated
 random fields. A generated person can have a name, username, email, phone,
 address, job, company, bio, website, and social profiles that all make sense
