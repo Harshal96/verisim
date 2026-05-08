@@ -1,0 +1,30 @@
+{
+  "locale": "hi_IN",
+  "script": "devanagari",
+  "version": "0.1.0",
+  "provenance": [
+    "Synthetic Hindi names in Devanagari script for Verisim lite."
+  ],
+  "given": [
+    "आरव",
+    "अनन्या",
+    "ईशा",
+    "कबीर",
+    "मीरा",
+    "ओम",
+    "प्रकाश",
+    "राकेश"
+  ],
+  "family": [
+    "अग्रवाल",
+    "गुप्ता",
+    "अय्यर",
+    "कपूर",
+    "खान",
+    "मेहता",
+    "पटेल",
+    "राव",
+    "शर्मा",
+    "सिंह"
+  ]
+}

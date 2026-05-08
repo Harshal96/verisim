@@ -1,0 +1,30 @@
+{
+  "locale": "en_IN",
+  "script": "latin",
+  "version": "0.1.0",
+  "provenance": [
+    "Synthetic Indian names transliterated into Latin script for Verisim lite."
+  ],
+  "given": [
+    "Aarav",
+    "Ananya",
+    "Isha",
+    "Kabir",
+    "Meera",
+    "Om",
+    "Prakash",
+    "Rakesh"
+  ],
+  "family": [
+    "Agarwal",
+    "Gupta",
+    "Iyer",
+    "Kapoor",
+    "Khan",
+    "Mehta",
+    "Patel",
+    "Rao",
+    "Sharma",
+    "Singh"
+  ]
+}

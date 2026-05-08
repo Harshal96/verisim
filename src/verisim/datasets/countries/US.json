@@ -1,0 +1,196 @@
+{
+  "name": "United States",
+  "code": "US",
+  "calling_code": "+1",
+  "street_names": [
+    "Ash",
+    "Beacon",
+    "Birch",
+    "Cedar",
+    "Civic",
+    "Elm",
+    "Harbor",
+    "Hillcrest",
+    "Lake",
+    "Maple",
+    "Market",
+    "Oak",
+    "Pine",
+    "River",
+    "Summit",
+    "Union",
+    "Walnut",
+    "Willow"
+  ],
+  "street_suffixes": [
+    "Street",
+    "Avenue",
+    "Road",
+    "Lane",
+    "Drive",
+    "Court",
+    "Place",
+    "Way"
+  ],
+  "regions": [
+    {
+      "name": "California",
+      "code": "CA",
+      "cities": [
+        {
+          "name": "San Francisco",
+          "postal_codes": [
+            "94105",
+            "94107"
+          ],
+          "area_codes": [
+            "415",
+            "628"
+          ],
+          "latitude": 37.789,
+          "longitude": -122.394
+        },
+        {
+          "name": "Los Angeles",
+          "postal_codes": [
+            "90012",
+            "90017"
+          ],
+          "area_codes": [
+            "213",
+            "323"
+          ],
+          "latitude": 34.052,
+          "longitude": -118.244
+        },
+        {
+          "name": "San Diego",
+          "postal_codes": [
+            "92101",
+            "92103"
+          ],
+          "area_codes": [
+            "619",
+            "858"
+          ],
+          "latitude": 32.715,
+          "longitude": -117.161
+        }
+      ]
+    },
+    {
+      "name": "Texas",
+      "code": "TX",
+      "cities": [
+        {
+          "name": "Austin",
+          "postal_codes": [
+            "78701",
+            "78702"
+          ],
+          "area_codes": [
+            "512",
+            "737"
+          ],
+          "latitude": 30.267,
+          "longitude": -97.743
+        },
+        {
+          "name": "Dallas",
+          "postal_codes": [
+            "75201",
+            "75204"
+          ],
+          "area_codes": [
+            "214",
+            "469"
+          ],
+          "latitude": 32.776,
+          "longitude": -96.797
+        },
+        {
+          "name": "Houston",
+          "postal_codes": [
+            "77002",
+            "77006"
+          ],
+          "area_codes": [
+            "713",
+            "832"
+          ],
+          "latitude": 29.76,
+          "longitude": -95.369
+        }
+      ]
+    },
+    {
+      "name": "New York",
+      "code": "NY",
+      "cities": [
+        {
+          "name": "New York",
+          "postal_codes": [
+            "10001",
+            "10003"
+          ],
+          "area_codes": [
+            "212",
+            "646"
+          ],
+          "latitude": 40.75,
+          "longitude": -73.997
+        },
+        {
+          "name": "Buffalo",
+          "postal_codes": [
+            "14201",
+            "14202"
+          ],
+          "area_codes": [
+            "716"
+          ],
+          "latitude": 42.886,
+          "longitude": -78.878
+        }
+      ]
+    },
+    {
+      "name": "Washington",
+      "code": "WA",
+      "cities": [
+        {
+          "name": "Seattle",
+          "postal_codes": [
+            "98101",
+            "98103"
+          ],
+          "area_codes": [
+            "206",
+            "425"
+          ],
+          "latitude": 47.606,
+          "longitude": -122.332
+        }
+      ]
+    },
+    {
+      "name": "Illinois",
+      "code": "IL",
+      "cities": [
+        {
+          "name": "Chicago",
+          "postal_codes": [
+            "60601",
+            "60607"
+          ],
+          "area_codes": [
+            "312",
+            "773"
+          ],
+          "latitude": 41.883,
+          "longitude": -87.632
+        }
+      ]
+    }
+  ]
+}

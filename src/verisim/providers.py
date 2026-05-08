@@ -4,7 +4,7 @@ from datetime import date
 from random import Random
 
 from verisim.context import GenerationState
-from verisim.data import IndustryData
+from verisim.data import IndustryData, NameData
 from verisim.models import (
     Company,
     Contact,
@@ -54,8 +54,7 @@ class PersonProvider:
 
     def generate(self, state: GenerationState) -> dict[str, object]:
         names = state.data.names_for_locale(state.locale, state.script)
-        given_name = state.random.choice(names.given)
-        family_name = state.random.choice(names.family)
+        given_name, family_name = self._unique_name(state, names)
         name = f"{given_name} {family_name}"
         birthdate = self._birthdate(state.random)
         username = self._username(state, given_name, family_name, birthdate.year)
@@ -75,6 +74,44 @@ class PersonProvider:
         month = random.randint(1, 12)
         day = random.randint(1, 28)
         return date(year, month, day)
+
+    def _unique_name(self, state: GenerationState, names: NameData) -> tuple[str, str]:
+        if len(names.family) >= 10_000:
+            return state.random.choice(names.given), self._unique_family_name(
+                state, names.family
+            )
+        return self._unique_full_name(state, names)
+
+    def _unique_family_name(
+        self, state: GenerationState, family_names: tuple[str, ...]
+    ) -> str:
+        start = state.random.randrange(len(family_names))
+
+        def candidate(attempt: int) -> str:
+            return family_names[(start + attempt) % len(family_names)]
+
+        return str(
+            state.registry.unique(
+                "person_family_name", candidate, max_attempts=len(family_names)
+            )
+        )
+
+    def _unique_full_name(
+        self, state: GenerationState, names: NameData
+    ) -> tuple[str, str]:
+        family_count = len(names.family)
+        total_names = len(names.given) * family_count
+        start = state.random.randrange(total_names)
+
+        def candidate(attempt: int) -> tuple[str, str]:
+            index = (start + attempt) % total_names
+            given_index, family_index = divmod(index, family_count)
+            return names.given[given_index], names.family[family_index]
+
+        given_name, family_name = state.registry.unique(
+            "person_name", candidate, max_attempts=total_names
+        )
+        return str(given_name), str(family_name)
 
     def _username(
         self, state: GenerationState, given_name: str, family_name: str, birth_year: int

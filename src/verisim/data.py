@@ -1,8 +1,14 @@
 from __future__ import annotations
 
+import json
+from collections import defaultdict
 from dataclasses import dataclass
+from importlib.resources import files
+from os import PathLike
 from random import Random
+from zipfile import ZipFile
 
+from verisim.locale_loader import load_locale_names
 from verisim.models import Address, GeoPoint, PackMetadata
 
 
@@ -27,6 +33,7 @@ class CountryData:
     name: str
     code: str
     calling_code: str
+    street_names: tuple[str, ...]
     street_suffixes: tuple[str, ...]
     regions: tuple[RegionData, ...]
 
@@ -48,6 +55,136 @@ class IndustryData:
     bio_templates: tuple[str, ...]
 
 
+def _load_packaged_country(country_code: str) -> CountryData:
+    resource = files("verisim.datasets.countries").joinpath(f"{country_code}.json")
+    payload = json.loads(resource.read_text(encoding="utf-8"))
+    return _country_from_payload(payload)
+
+
+def _country_from_payload(payload: dict[str, object]) -> CountryData:
+    return CountryData(
+        name=str(payload["name"]),
+        code=str(payload["code"]),
+        calling_code=str(payload["calling_code"]),
+        street_names=tuple(str(name) for name in payload["street_names"]),
+        street_suffixes=tuple(str(suffix) for suffix in payload["street_suffixes"]),
+        regions=tuple(
+            RegionData(
+                name=str(region["name"]),
+                code=str(region["code"]),
+                cities=tuple(
+                    CityData(
+                        name=str(city["name"]),
+                        postal_codes=tuple(
+                            str(postal_code) for postal_code in city["postal_codes"]
+                        ),
+                        area_codes=tuple(
+                            str(area_code) for area_code in city["area_codes"]
+                        ),
+                        latitude=float(city["latitude"]),
+                        longitude=float(city["longitude"]),
+                    )
+                    for city in region["cities"]
+                ),
+            )
+            for region in payload["regions"]
+        ),
+    )
+
+
+def load_geonames_postal_countries(
+    path: str | PathLike[str], country_codes: set[str] | None = None
+) -> dict[str, CountryData]:
+    region_rows = defaultdict(lambda: defaultdict(dict))
+    with ZipFile(path) as archive:
+        member = next(name for name in archive.namelist() if name.endswith(".txt"))
+        with archive.open(member) as handle:
+            for raw_line in handle:
+                fields = raw_line.decode("utf-8").rstrip("\n").split("\t")
+                if len(fields) < 12:
+                    continue
+                country_code = fields[0]
+                if country_codes is not None and country_code not in country_codes:
+                    continue
+                postal_code = fields[1]
+                city_name = fields[2]
+                region_name = fields[3] or fields[4] or country_code
+                region_code = fields[4] or region_name
+                latitude = float(fields[9])
+                longitude = float(fields[10])
+                region_key = (region_name, region_code)
+                city_data = region_rows[country_code][region_key].setdefault(
+                    city_name,
+                    {
+                        "postal_codes": set(),
+                        "latitude": latitude,
+                        "longitude": longitude,
+                    },
+                )
+                city_data["postal_codes"].add(postal_code)
+
+    countries: dict[str, CountryData] = {}
+    for country_code, regions_by_key in region_rows.items():
+        country_name, calling_code, street_names, street_suffixes = _country_defaults(
+            country_code
+        )
+        regions = []
+        for (region_name, region_code), cities_by_name in sorted(
+            regions_by_key.items()
+        ):
+            cities = []
+            for city_name, city_data in sorted(cities_by_name.items()):
+                cities.append(
+                    CityData(
+                        name=city_name,
+                        postal_codes=tuple(sorted(city_data["postal_codes"])),
+                        area_codes=("555",),
+                        latitude=city_data["latitude"],
+                        longitude=city_data["longitude"],
+                    )
+                )
+            regions.append(
+                RegionData(name=region_name, code=region_code, cities=tuple(cities))
+            )
+        countries[country_code] = CountryData(
+            name=country_name,
+            code=country_code,
+            calling_code=calling_code,
+            street_names=street_names,
+            street_suffixes=street_suffixes,
+            regions=tuple(regions),
+        )
+    return countries
+
+
+def _country_defaults(
+    country_code: str,
+) -> tuple[str, str, tuple[str, ...], tuple[str, ...]]:
+    defaults = {
+        "US": (
+            "United States",
+            "+1",
+            ("Main", "Market", "Oak", "Pine", "Maple"),
+            ("Street", "Avenue", "Road", "Lane", "Drive"),
+        ),
+        "IN": (
+            "India",
+            "+91",
+            ("MG", "Nehru", "Park", "Station", "Lake"),
+            ("Road", "Marg", "Nagar", "Street", "Lane"),
+        ),
+    }
+    return defaults.get(
+        country_code,
+        (
+            country_code,
+            "",
+            ("Main", "Market", "Central"),
+            ("Street", "Road", "Avenue"),
+        ),
+    )
+
+
 class LiteDataPack:
     """Small built-in data pack for coherent US data plus priority-country examples."""
 
@@ -67,318 +204,26 @@ class LiteDataPack:
 
     def __init__(self) -> None:
         self.countries = {
-            "US": CountryData(
-                name="United States",
-                code="US",
-                calling_code="+1",
-                street_suffixes=(
-                    "Street",
-                    "Avenue",
-                    "Road",
-                    "Lane",
-                    "Drive",
-                    "Court",
-                    "Place",
-                    "Way",
-                ),
-                regions=(
-                    RegionData(
-                        "California",
-                        "CA",
-                        (
-                            CityData(
-                                "San Francisco",
-                                ("94105", "94107", "94110"),
-                                ("415", "628"),
-                                37.789,
-                                -122.394,
-                            ),
-                            CityData(
-                                "Los Angeles",
-                                ("90001", "90012", "90017"),
-                                ("213", "323"),
-                                34.052,
-                                -118.244,
-                            ),
-                            CityData(
-                                "San Diego",
-                                ("92101", "92103", "92109"),
-                                ("619", "858"),
-                                32.715,
-                                -117.161,
-                            ),
-                        ),
-                    ),
-                    RegionData(
-                        "Texas",
-                        "TX",
-                        (
-                            CityData(
-                                "Austin",
-                                ("78701", "78702", "78704"),
-                                ("512", "737"),
-                                30.267,
-                                -97.743,
-                            ),
-                            CityData(
-                                "Dallas",
-                                ("75201", "75204", "75219"),
-                                ("214", "469"),
-                                32.776,
-                                -96.797,
-                            ),
-                            CityData(
-                                "Houston",
-                                ("77002", "77006", "77019"),
-                                ("713", "832"),
-                                29.760,
-                                -95.369,
-                            ),
-                        ),
-                    ),
-                    RegionData(
-                        "New York",
-                        "NY",
-                        (
-                            CityData(
-                                "New York",
-                                ("10001", "10003", "10011"),
-                                ("212", "646"),
-                                40.750,
-                                -73.997,
-                            ),
-                            CityData(
-                                "Buffalo",
-                                ("14201", "14202", "14213"),
-                                ("716",),
-                                42.886,
-                                -78.878,
-                            ),
-                        ),
-                    ),
-                    RegionData(
-                        "Washington",
-                        "WA",
-                        (
-                            CityData(
-                                "Seattle",
-                                ("98101", "98103", "98109"),
-                                ("206", "425"),
-                                47.606,
-                                -122.332,
-                            ),
-                            CityData(
-                                "Spokane",
-                                ("99201", "99202", "99205"),
-                                ("509",),
-                                47.658,
-                                -117.426,
-                            ),
-                        ),
-                    ),
-                    RegionData(
-                        "Illinois",
-                        "IL",
-                        (
-                            CityData(
-                                "Chicago",
-                                ("60601", "60607", "60614"),
-                                ("312", "773"),
-                                41.883,
-                                -87.632,
-                            ),
-                        ),
-                    ),
-                    RegionData(
-                        "Florida",
-                        "FL",
-                        (
-                            CityData(
-                                "Miami",
-                                ("33101", "33130", "33139"),
-                                ("305", "786"),
-                                25.761,
-                                -80.191,
-                            ),
-                            CityData(
-                                "Orlando",
-                                ("32801", "32803", "32819"),
-                                ("407",),
-                                28.538,
-                                -81.379,
-                            ),
-                        ),
-                    ),
-                ),
-            ),
-            "IN": CountryData(
-                name="India",
-                code="IN",
-                calling_code="+91",
-                street_suffixes=("Road", "Marg", "Nagar", "Street", "Lane", "Colony"),
-                regions=(
-                    RegionData(
-                        "Maharashtra",
-                        "MH",
-                        (
-                            CityData(
-                                "Mumbai",
-                                ("400001", "400050", "400076"),
-                                ("22",),
-                                18.938,
-                                72.835,
-                            ),
-                            CityData(
-                                "Pune",
-                                ("411001", "411004", "411045"),
-                                ("20",),
-                                18.520,
-                                73.856,
-                            ),
-                        ),
-                    ),
-                    RegionData(
-                        "Delhi",
-                        "DL",
-                        (
-                            CityData(
-                                "New Delhi",
-                                ("110001", "110016", "110075"),
-                                ("11",),
-                                28.613,
-                                77.209,
-                            ),
-                        ),
-                    ),
-                    RegionData(
-                        "Karnataka",
-                        "KA",
-                        (
-                            CityData(
-                                "Bengaluru",
-                                ("560001", "560034", "560100"),
-                                ("80",),
-                                12.971,
-                                77.594,
-                            ),
-                        ),
-                    ),
-                    RegionData(
-                        "Telangana",
-                        "TS",
-                        (
-                            CityData(
-                                "Hyderabad",
-                                ("500001", "500032", "500081"),
-                                ("40",),
-                                17.385,
-                                78.486,
-                            ),
-                        ),
-                    ),
-                ),
-            ),
+            "US": _load_packaged_country("US"),
+            "IN": _load_packaged_country("IN"),
         }
+        en_us_given, en_us_family = load_locale_names("en_US", "latin")
+        en_in_given, en_in_family = load_locale_names("en_IN", "latin")
+        hi_in_given, hi_in_family = load_locale_names("hi_IN", "devanagari")
         self.names = {
             ("en_US", "latin"): NameData(
-                given=(
-                    "Avery",
-                    "Brooke",
-                    "Cameron",
-                    "Casey",
-                    "Drew",
-                    "Elliot",
-                    "Harper",
-                    "James",
-                    "Jordan",
-                    "Kelsey",
-                    "Logan",
-                    "Maya",
-                    "Morgan",
-                    "Parker",
-                    "Quinn",
-                    "Riley",
-                    "Taylor",
-                    "Sydney",
-                    "Alex",
-                    "Jamie",
-                    "Nina",
-                    "Miles",
-                    "Leah",
-                    "Owen",
-                ),
-                family=(
-                    "Anderson",
-                    "Bennett",
-                    "Brooks",
-                    "Carter",
-                    "Chen",
-                    "Diaz",
-                    "Ellis",
-                    "Foster",
-                    "Garcia",
-                    "Hayes",
-                    "Johnson",
-                    "Kim",
-                    "Lee",
-                    "Morgan",
-                    "Nguyen",
-                    "Patel",
-                    "Reed",
-                    "Rivera",
-                    "Sullivan",
-                    "Thomas",
-                    "Walker",
-                    "Ward",
-                    "Young",
-                    "Zhang",
-                ),
+                given=en_us_given,
+                family=en_us_family,
             ),
-            ("hi_IN", "latin"): NameData(
-                given=(
-                    "Aarav",
-                    "Ananya",
-                    "Isha",
-                    "Kabir",
-                    "Meera",
-                    "Om",
-                    "Prakash",
-                    "Rakesh",
-                ),
-                family=(
-                    "Agarwal",
-                    "Gupta",
-                    "Iyer",
-                    "Kapoor",
-                    "Khan",
-                    "Mehta",
-                    "Patel",
-                    "Rao",
-                    "Sharma",
-                    "Singh",
-                ),
+            ("en_IN", "latin"): NameData(
+                given=en_in_given,
+                family=en_in_family,
+            ),
+            ("hi_IN", "devanagari"): NameData(
+                given=hi_in_given,
+                family=hi_in_family,
             ),
         }
-        self.street_names = (
-            "Ash",
-            "Beacon",
-            "Birch",
-            "Cedar",
-            "Civic",
-            "Elm",
-            "Harbor",
-            "Hillcrest",
-            "Lake",
-            "Maple",
-            "Market",
-            "Oak",
-            "Pine",
-            "River",
-            "Summit",
-            "Union",
-            "Walnut",
-            "Willow",
-        )
         self.industries = (
             IndustryData(
                 industry="Data Infrastructure",
@@ -487,7 +332,15 @@ class LiteDataPack:
         return self.countries["US"]
 
     def names_for_locale(self, locale: str, script: str) -> NameData:
-        return self.names.get((locale, script), self.names[("en_US", "latin")])
+        if (locale, script) in self.names:
+            return self.names[(locale, script)]
+        for (candidate_locale, _), names in self.names.items():
+            if candidate_locale == locale:
+                return names
+        return self.names[("en_US", "latin")]
+
+    def street_names_for_country(self, country_code: str) -> tuple[str, ...]:
+        return self.countries[country_code].street_names
 
     def choose_city(
         self, random: Random, country_code: str
@@ -533,7 +386,8 @@ class LiteDataPack:
         )
         _, region, city = self.choose_city(random, country.code)
         line1 = (
-            f"{random.randint(10, 9999)} {random.choice(self.street_names)} "
+            f"{random.randint(10, 9999)} "
+            f"{random.choice(self.street_names_for_country(country.code))} "
             f"{random.choice(country.street_suffixes)}"
         )
         return Address(

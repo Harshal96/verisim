@@ -1,0 +1,114 @@
+{
+  "name": "India",
+  "code": "IN",
+  "calling_code": "+91",
+  "street_names": [
+    "MG",
+    "Nehru",
+    "Park",
+    "Station",
+    "Lake",
+    "Civic",
+    "Ashok",
+    "Ring"
+  ],
+  "street_suffixes": [
+    "Road",
+    "Marg",
+    "Nagar",
+    "Street",
+    "Lane",
+    "Colony"
+  ],
+  "regions": [
+    {
+      "name": "Maharashtra",
+      "code": "MH",
+      "cities": [
+        {
+          "name": "Mumbai",
+          "postal_codes": [
+            "400001",
+            "400050",
+            "400076"
+          ],
+          "area_codes": [
+            "22"
+          ],
+          "latitude": 18.938,
+          "longitude": 72.835
+        },
+        {
+          "name": "Pune",
+          "postal_codes": [
+            "411001",
+            "411004",
+            "411045"
+          ],
+          "area_codes": [
+            "20"
+          ],
+          "latitude": 18.52,
+          "longitude": 73.856
+        }
+      ]
+    },
+    {
+      "name": "Delhi",
+      "code": "DL",
+      "cities": [
+        {
+          "name": "New Delhi",
+          "postal_codes": [
+            "110001",
+            "110016",
+            "110075"
+          ],
+          "area_codes": [
+            "11"
+          ],
+          "latitude": 28.613,
+          "longitude": 77.209
+        }
+      ]
+    },
+    {
+      "name": "Karnataka",
+      "code": "KA",
+      "cities": [
+        {
+          "name": "Bengaluru",
+          "postal_codes": [
+            "560001",
+            "560034",
+            "560100"
+          ],
+          "area_codes": [
+            "80"
+          ],
+          "latitude": 12.971,
+          "longitude": 77.594
+        }
+      ]
+    },
+    {
+      "name": "Telangana",
+      "code": "TS",
+      "cities": [
+        {
+          "name": "Hyderabad",
+          "postal_codes": [
+            "500001",
+            "500032",
+            "500081"
+          ],
+          "area_codes": [
+            "40"
+          ],
+          "latitude": 17.385,
+          "longitude": 78.486
+        }
+      ]
+    }
+  ]
+}
