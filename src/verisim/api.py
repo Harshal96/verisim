@@ -44,7 +44,11 @@ class Verisim:
         self.random = Random(seed)
         self.registry = UniquenessRegistry(namespace=f"{locale}:{seed}")
         self.pack_manager = DataPackManager()
-        self.data = self.pack_manager.load(data_pack) if isinstance(data_pack, str) else data_pack
+        self.data = (
+            self.pack_manager.load(data_pack)
+            if isinstance(data_pack, str)
+            else data_pack
+        )
         self.graph = ContextGraph(
             providers=default_providers(),
             targets={
@@ -88,7 +92,12 @@ class Verisim:
         )
         return self.graph.generate(model, state)  # type: ignore[return-value]
 
-    def records(self, model: type[T], count: int, context: object | Mapping[str, object] | None = None) -> list[T]:
+    def records(
+        self,
+        model: type[T],
+        count: int,
+        context: object | Mapping[str, object] | None = None,
+    ) -> list[T]:
         return [self.generate(model, context=context) for _ in range(count)]  # type: ignore[list-item]
 
     def iter_records(
@@ -104,15 +113,25 @@ class Verisim:
 
     def dataset(self, spec: DatasetSpec) -> Dataset:
         if spec.people and spec.companies == 0:
-            raise ValueError("DatasetSpec.companies must be at least 1 when people are requested")
+            raise ValueError(
+                "DatasetSpec.companies must be at least 1 when people are requested"
+            )
         companies = [self.generate(Company) for _ in range(spec.companies)]
         people: list[PersonRecord] = []
         for index in range(spec.people):
             company = companies[index % len(companies)]
-            people.append(self.generate(PersonRecord, context={"company": company}, mode="repair"))  # type: ignore[arg-type]
+            people.append(
+                self.generate(
+                    PersonRecord,
+                    context={"company": company},
+                    mode="repair",
+                )
+            )
         return Dataset(people=people, companies=companies)
 
-    def _facts_from_context(self, context: object | Mapping[str, object] | None, target: type) -> dict[str, object]:
+    def _facts_from_context(
+        self, context: object | Mapping[str, object] | None, target: type
+    ) -> dict[str, object]:
         if context is None:
             return {}
         if isinstance(context, Mapping):
@@ -186,14 +205,17 @@ class Verisim:
         company = facts.get("company")
 
         if isinstance(address, Address):
-            postal_codes = self.data.postal_codes_for_city(address.country_code, address.region_code, address.city)
+            postal_codes = self.data.postal_codes_for_city(
+                address.country_code, address.region_code, address.city
+            )
             if not postal_codes or address.postal_code not in postal_codes:
                 conflicts.append(
                     DiagnosticIssue(
                         code="address.postal_code",
                         message=(
                             f"postal code {address.postal_code} does not belong to "
-                            f"{address.city}, {address.region_code}, {address.country_code}"
+                            f"{address.city}, {address.region_code}, "
+                            f"{address.country_code}"
                         ),
                         path="address.postal_code",
                     )
@@ -204,23 +226,32 @@ class Verisim:
                     DiagnosticIssue(
                         code="contact.phone.country",
                         message=(
-                            f"phone country {contact.phone.country_code} does not match "
-                            f"address country {address.country_code}"
+                            f"phone country {contact.phone.country_code} "
+                            f"does not match address country {address.country_code}"
                         ),
                         path="contact.phone",
                     )
                 )
-        if isinstance(job, Job) and isinstance(company, Company) and job.industry != company.industry:
+        if (
+            isinstance(job, Job)
+            and isinstance(company, Company)
+            and job.industry != company.industry
+        ):
             conflicts.append(
                 DiagnosticIssue(
                     code="job.company.industry",
-                    message=f"job industry {job.industry} does not match company industry {company.industry}",
+                    message=(
+                        f"job industry {job.industry} does not match "
+                        f"company industry {company.industry}"
+                    ),
                     path="job.industry",
                 )
             )
         return GenerationDiagnostics(ok=not conflicts, conflicts=conflicts)
 
-    def _repair(self, facts: dict[str, object], conflicts: list[DiagnosticIssue]) -> dict[str, object]:
+    def _repair(
+        self, facts: dict[str, object], conflicts: list[DiagnosticIssue]
+    ) -> dict[str, object]:
         repaired = dict(facts)
         for conflict in conflicts:
             if conflict.code == "contact.phone.country":

@@ -76,7 +76,9 @@ class PersonProvider:
         day = random.randint(1, 28)
         return date(year, month, day)
 
-    def _username(self, state: GenerationState, given_name: str, family_name: str, birth_year: int) -> str:
+    def _username(
+        self, state: GenerationState, given_name: str, family_name: str, birth_year: int
+    ) -> str:
         first = username_slug(given_name)
         last = username_slug(family_name)
         patterns = (
@@ -179,7 +181,9 @@ class ContactProvider:
 
         return str(state.registry.unique("email", candidate))
 
-    def _phone(self, state: GenerationState, country_code: str, address: object) -> PhoneNumber:
+    def _phone(
+        self, state: GenerationState, country_code: str, address: object
+    ) -> PhoneNumber:
         base = state.registry.next_index(f"phone-sequence:{country_code}")
 
         def candidate(attempt: int) -> str:
@@ -193,7 +197,11 @@ class ContactProvider:
                     country_calling_code="+91",
                 ).e164
 
-            city = state.data.city_for_address(address) if hasattr(address, "postal_code") else None
+            city = (
+                state.data.city_for_address(address)
+                if hasattr(address, "postal_code")
+                else None
+            )
             area = state.random.choice(city.area_codes) if city is not None else "555"
             line = sequence % 10_000
             return PhoneNumber(
@@ -224,7 +232,9 @@ class SocialsProvider:
         company_hint = username_slug(company.name.split()[0])
         job_hint = username_slug(job.title.split()[0])
         handles = {
-            "x": self._unique_handle(state, "x", (person.username, f"{first}{last}", f"{first}_{job_hint}")),
+            "x": self._unique_handle(
+                state, "x", (person.username, f"{first}{last}", f"{first}_{job_hint}")
+            ),
             "instagram": self._unique_handle(
                 state,
                 "instagram",
@@ -233,7 +243,11 @@ class SocialsProvider:
             "linkedin": self._unique_handle(
                 state,
                 "linkedin",
-                (f"{first}-{last}", f"{first}-{last}-{company_hint}", f"{first}-{last}-{state.random.randint(100, 999)}"),
+                (
+                    f"{first}-{last}",
+                    f"{first}-{last}-{company_hint}",
+                    f"{first}-{last}-{state.random.randint(100, 999)}",
+                ),
             ),
             "github": self._unique_handle(
                 state,
@@ -243,7 +257,11 @@ class SocialsProvider:
         }
         return {
             "socials": Socials(
-                x=SocialAccount(platform="x", handle=handles["x"], url=_platform_url("x", handles["x"])),
+                x=SocialAccount(
+                    platform="x",
+                    handle=handles["x"],
+                    url=_platform_url("x", handles["x"]),
+                ),
                 instagram=SocialAccount(
                     platform="instagram",
                     handle=handles["instagram"],
@@ -262,9 +280,14 @@ class SocialsProvider:
             )
         }
 
-    def _unique_handle(self, state: GenerationState, platform: str, candidates: tuple[str, ...]) -> str:
+    def _unique_handle(
+        self, state: GenerationState, platform: str, candidates: tuple[str, ...]
+    ) -> str:
         def candidate(attempt: int) -> str:
-            base = username_slug(candidates[attempt % len(candidates)], separator="-" if platform == "linkedin" else ".")
+            base = username_slug(
+                candidates[attempt % len(candidates)],
+                separator="-" if platform == "linkedin" else ".",
+            )
             return base if attempt < len(candidates) else f"{base}{attempt}"
 
         return str(state.registry.unique(f"social:{platform}", candidate))
@@ -315,7 +338,17 @@ class BioProvider:
 
 class PersonRecordProvider:
     provides = ("person_record",)
-    requires = ("person", "address", "contact", "job", "company", "socials", "avatar", "bio", "website")
+    requires = (
+        "person",
+        "address",
+        "contact",
+        "job",
+        "company",
+        "socials",
+        "avatar",
+        "bio",
+        "website",
+    )
 
     def generate(self, state: GenerationState) -> dict[str, object]:
         record = PersonRecord(

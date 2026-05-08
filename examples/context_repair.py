@@ -15,7 +15,9 @@ def generate_example(seed: int = 123) -> tuple[GenerationDiagnostics, PersonReco
         country="United States",
         country_code="US",
     )
-    contact = Contact.synthetic(email="rakesh.patel@example.invalid", phone="+91 98765 43210")
+    contact = Contact.synthetic(
+        email="rakesh.patel@example.invalid", phone="+91 98765 43210"
+    )
     context = {"address": address, "contact": contact}
     diagnostics = verisim.generate(PersonRecord, context=context, mode="explain")
     repaired = verisim.generate(PersonRecord, context=context, mode="repair")

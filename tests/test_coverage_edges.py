@@ -50,7 +50,9 @@ def test_offline_prose_adapter_and_protocol_method_are_exercised():
     record = Verisim(seed=3).generate(PersonRecord)
 
     prose = OfflineProseAdapter().bio(record.person, record.job, record.company)
-    protocol_result = ProseAdapter.bio(object(), record.person, record.job, record.company)
+    protocol_result = ProseAdapter.bio(
+        object(), record.person, record.job, record.company
+    )
 
     assert record.person.name in prose
     assert record.job.title in prose
@@ -72,7 +74,11 @@ def test_invalid_conflict_mode_is_rejected_when_context_has_conflicts():
     contact = Contact.synthetic(email="person@example.invalid", phone="+91 98765 43210")
 
     with pytest.raises(ValueError, match="unknown conflict mode"):
-        verisim.generate(PersonRecord, context={"address": address, "contact": contact}, mode="mystery")
+        verisim.generate(
+            PersonRecord,
+            context={"address": address, "contact": contact},
+            mode="mystery",
+        )
 
 
 def test_iter_records_supports_finite_and_open_ended_generation():
@@ -179,7 +185,11 @@ def test_strict_mode_raises_for_job_company_industry_conflict():
     )
 
     with pytest.raises(ContextConflictError, match="job industry"):
-        verisim.generate(PersonRecord, context={"company": company, "job": mismatched_job}, mode="strict")
+        verisim.generate(
+            PersonRecord,
+            context={"company": company, "job": mismatched_job},
+            mode="strict",
+        )
 
 
 def test_context_graph_reports_unsupported_model_and_missing_provider():
@@ -234,7 +244,9 @@ def test_model_helpers_cover_fallback_phone_website_and_social_handles():
     phone = PhoneNumber.from_string("+44 20 7946 0958")
     website = Website.from_host("example.invalid", "about")
     socials = Socials(
-        x=SocialAccount(platform="x", handle="avery.reed", url="https://x.com/avery.reed"),
+        x=SocialAccount(
+            platform="x", handle="avery.reed", url="https://x.com/avery.reed"
+        ),
         instagram=SocialAccount(
             platform="instagram",
             handle="avery_reed",
@@ -245,7 +257,9 @@ def test_model_helpers_cover_fallback_phone_website_and_social_handles():
             handle="avery-reed",
             url="https://linkedin.com/in/avery-reed",
         ),
-        github=SocialAccount(platform="github", handle="reedavery", url="https://github.com/reedavery"),
+        github=SocialAccount(
+            platform="github", handle="reedavery", url="https://github.com/reedavery"
+        ),
     )
 
     assert phone.country_code == "US"

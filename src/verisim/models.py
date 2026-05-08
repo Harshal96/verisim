@@ -6,11 +6,15 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
-CountryCode = Annotated[str, StringConstraints(pattern=r"^[A-Z]{2}$", min_length=2, max_length=2)]
+CountryCode = Annotated[
+    str, StringConstraints(pattern=r"^[A-Z]{2}$", min_length=2, max_length=2)
+]
 LocaleCode = Annotated[str, StringConstraints(pattern=r"^[a-z]{2}_[A-Z]{2}$")]
 PostalCode = Annotated[str, StringConstraints(min_length=3, max_length=12)]
 EmailAddress = Annotated[str, StringConstraints(pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")]
-Username = Annotated[str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9._-]{1,62}[a-z0-9]$")]
+Username = Annotated[
+    str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9._-]{1,62}[a-z0-9]$")
+]
 Url = Annotated[str, StringConstraints(pattern=r"^https?://[^/\s]+.*$")]
 
 
@@ -50,7 +54,12 @@ class PhoneNumber(VerisimModel):
                 country_code="IN",
                 country_calling_code="+91",
             )
-        return cls(e164=f"+{digits}", national=raw, country_code="US", country_calling_code="+1")
+        return cls(
+            e164=f"+{digits}",
+            national=raw,
+            country_code="US",
+            country_calling_code="+1",
+        )
 
 
 class Website(VerisimModel):
@@ -138,7 +147,12 @@ class Socials(VerisimModel):
     github: SocialAccount
 
     def handles(self) -> list[str]:
-        return [self.x.handle, self.instagram.handle, self.linkedin.handle, self.github.handle]
+        return [
+            self.x.handle,
+            self.instagram.handle,
+            self.linkedin.handle,
+            self.github.handle,
+        ]
 
 
 class PersonRecord(VerisimModel):

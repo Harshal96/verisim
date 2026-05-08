@@ -6,14 +6,18 @@ from random import Random
 
 
 def ascii_slug(value: str, separator: str = "-") -> str:
-    normalized = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+    normalized = (
+        unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+    )
     lowered = normalized.lower()
     slug = re.sub(r"[^a-z0-9]+", separator, lowered).strip(separator)
     return slug or "verisim"
 
 
 def username_slug(value: str, separator: str = ".") -> str:
-    normalized = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+    normalized = (
+        unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+    )
     slug = re.sub(r"[^a-z0-9._-]+", separator, normalized.lower()).strip("._-")
     slug = re.sub(r"[^a-z0-9._-]+", "", slug).strip("._-")
     return slug or "person"

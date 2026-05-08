@@ -16,5 +16,7 @@ class ContextConflictError(VerisimError):
 
     def __init__(self, conflicts: Sequence[object]) -> None:
         self.conflicts = list(conflicts)
-        message = "; ".join(getattr(conflict, "message", str(conflict)) for conflict in self.conflicts)
+        message = "; ".join(
+            getattr(conflict, "message", str(conflict)) for conflict in self.conflicts
+        )
         super().__init__(message or "context contains conflicting facts")

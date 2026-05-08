@@ -288,10 +288,36 @@ dataset = dataset_generation.generate_example(seed=123, people=5, companies=2)
 
 ## Development
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full local development and pull
+request workflow.
+
 Run tests:
 
 ```bash
 uv run --extra dev python -B -m pytest -q
+```
+
+Format and sort imports:
+
+```bash
+uv run --extra dev autoflake src examples tests
+uv run --extra dev isort src examples tests
+uv run --extra dev black src examples tests
+```
+
+Lint:
+
+```bash
+uv run --extra dev ruff check src examples tests
+```
+
+Check formatting and cleanup without rewriting files:
+
+```bash
+uv run --extra dev autoflake --check src examples tests
+uv run --extra dev isort --check-only src examples tests
+uv run --extra dev black --check src examples tests
+uv run --extra dev ruff check src examples tests
 ```
 
 Run the 100% per-file coverage gate:

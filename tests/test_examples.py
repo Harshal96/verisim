@@ -1,6 +1,5 @@
-from verisim import Dataset, GenerationDiagnostics, PersonRecord
-
 from examples import basic_person, context_repair, dataset_generation
+from verisim import Dataset, GenerationDiagnostics, PersonRecord
 
 
 def test_basic_person_example_returns_a_person_record():

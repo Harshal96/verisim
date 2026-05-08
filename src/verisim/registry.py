@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Callable
-from uuid import UUID, uuid5, NAMESPACE_URL
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 
 class UniquenessRegistry:
@@ -17,7 +17,9 @@ class UniquenessRegistry:
     def contains(self, key: str, value: object) -> bool:
         return str(value) in self._values[key]
 
-    def unique(self, key: str, factory: Callable[[int], object], max_attempts: int = 50_000) -> object:
+    def unique(
+        self, key: str, factory: Callable[[int], object], max_attempts: int = 50_000
+    ) -> object:
         for attempt in range(max_attempts):
             value = factory(attempt)
             serialized = str(value)

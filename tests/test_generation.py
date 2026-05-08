@@ -20,7 +20,9 @@ def test_person_record_generates_coherent_fields_for_us_lite():
 
     assert record.person.name
     assert record.person.username
-    assert any(part.lower() in record.person.username for part in record.person.name.split())
+    assert any(
+        part.lower() in record.person.username for part in record.person.name.split()
+    )
     assert record.contact.email.endswith(".example.invalid")
     assert record.contact.phone.country_code == "US"
     assert record.contact.phone.e164.startswith("+1")
@@ -54,7 +56,16 @@ def test_indian_locale_can_output_latin_english_names_and_country_correct_phone(
     assert record.address.country_code == "IN"
     assert record.contact.phone.country_code == "IN"
     assert record.contact.phone.e164.startswith("+91")
-    assert record.person.given_name in {"Aarav", "Ananya", "Isha", "Kabir", "Meera", "Om", "Prakash", "Rakesh"}
+    assert record.person.given_name in {
+        "Aarav",
+        "Ananya",
+        "Isha",
+        "Kabir",
+        "Meera",
+        "Om",
+        "Prakash",
+        "Rakesh",
+    }
     assert record.person.name.isascii()
     assert record.address.postal_code in verisim.data.postal_codes_for_city(
         country_code="IN",
@@ -63,7 +74,7 @@ def test_indian_locale_can_output_latin_english_names_and_country_correct_phone(
     )
 
 
-def test_generate_socials_from_existing_person_record_uses_context_without_copying_all_handles():
+def test_socials_from_person_record_context_do_not_copy_all_handles():
     verisim = Verisim(locale="en_US", seed=21)
     record = verisim.generate(PersonRecord)
 
@@ -92,12 +103,20 @@ def test_strict_mode_rejects_country_inconsistent_context_and_repair_mode_fixes_
         country="United States",
         country_code="US",
     )
-    contact = Contact.synthetic(email="rakesh.patel@example.invalid", phone="+91 98765 43210")
+    contact = Contact.synthetic(
+        email="rakesh.patel@example.invalid", phone="+91 98765 43210"
+    )
 
     with pytest.raises(ContextConflictError):
-        verisim.generate(PersonRecord, context={"address": address, "contact": contact}, mode="strict")
+        verisim.generate(
+            PersonRecord,
+            context={"address": address, "contact": contact},
+            mode="strict",
+        )
 
-    repaired = verisim.generate(PersonRecord, context={"address": address, "contact": contact}, mode="repair")
+    repaired = verisim.generate(
+        PersonRecord, context={"address": address, "contact": contact}, mode="repair"
+    )
 
     assert repaired.address.country_code == "US"
     assert repaired.contact.phone.country_code == "US"
@@ -117,11 +136,16 @@ def test_explain_mode_returns_diagnostics_without_generating_a_record():
     )
     contact = Contact.synthetic(email="person@example.invalid", phone="+91 98765 43210")
 
-    diagnostics = verisim.generate(PersonRecord, context={"address": address, "contact": contact}, mode="explain")
+    diagnostics = verisim.generate(
+        PersonRecord, context={"address": address, "contact": contact}, mode="explain"
+    )
 
     assert diagnostics.ok is False
     assert diagnostics.conflicts
-    assert "phone country IN does not match address country US" in diagnostics.conflicts[0].message
+    assert (
+        "phone country IN does not match address country US"
+        in diagnostics.conflicts[0].message
+    )
 
 
 def test_dataset_generation_preserves_referential_integrity_and_uniqueness():

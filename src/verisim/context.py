@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 from random import Random
 from typing import Protocol
 
@@ -25,12 +25,13 @@ class Provider(Protocol):
     provides: tuple[str, ...]
     requires: tuple[str, ...]
 
-    def generate(self, state: GenerationState) -> Mapping[str, object]:
-        ...
+    def generate(self, state: GenerationState) -> Mapping[str, object]: ...
 
 
 class ContextGraph:
-    def __init__(self, providers: Iterable[Provider], targets: Mapping[type, str]) -> None:
+    def __init__(
+        self, providers: Iterable[Provider], targets: Mapping[type, str]
+    ) -> None:
         self._providers_by_fact: dict[str, Provider] = {}
         for provider in providers:
             for fact in provider.provides:
@@ -40,7 +41,9 @@ class ContextGraph:
     def generate(self, model: type, state: GenerationState) -> object:
         target_fact = self._targets.get(model)
         if target_fact is None:
-            raise UnsupportedModelError(f"Verisim does not know how to generate {model!r}")
+            raise UnsupportedModelError(
+                f"Verisim does not know how to generate {model!r}"
+            )
         self.resolve(target_fact, state)
         return state.facts[target_fact]
 
