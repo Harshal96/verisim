@@ -1,0 +1,36 @@
+[project]
+name = "verisim"
+version = "0.1.0"
+description = "Context-aware synthetic data generation for coherent Pydantic domain models."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "pydantic>=2.7,<3",
+]
+
+[project.optional-dependencies]
+lite = []
+full = []
+ai = []
+dev = [
+  "coverage[toml]>=7.5",
+  "pytest>=8.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/verisim", "examples"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.coverage.run]
+source = ["src/verisim", "examples"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
