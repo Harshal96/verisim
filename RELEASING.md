@@ -39,7 +39,9 @@ first release soon after configuring it.
    ```
 
 3. Commit and push the release changes to `main`.
-4. Create and push a tag that matches the project version:
+4. Create and push a tag that matches the project version. Pushing the tag
+   starts the `Release` workflow and publishes to PyPI through the `pypi`
+   environment:
 
    ```bash
    git tag -a v0.1.0 -m "Release v0.1.0"
@@ -47,12 +49,10 @@ first release soon after configuring it.
    git push origin v0.1.0
    ```
 
-5. In GitHub, open **Releases** > **Draft a new release**.
-6. Select the matching tag, for example `v0.1.0`.
-7. Publish the GitHub release.
-8. If the `pypi` GitHub environment requires approval, approve the deployment.
-9. Wait for the `Release` workflow to finish.
-10. Verify the package at <https://pypi.org/project/verisim/>.
+5. If the `pypi` GitHub environment requires approval, approve the deployment.
+6. Wait for the `Release` workflow to finish.
+7. Verify the package at <https://pypi.org/project/verisim/>.
+8. Optional: create a GitHub Release for the tag after PyPI publish succeeds.
 
 ## Troubleshooting
 
