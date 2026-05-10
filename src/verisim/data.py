@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from dataclasses import dataclass
+from functools import cache
 from importlib.resources import files
 from os import PathLike
 from random import Random
@@ -10,6 +11,26 @@ from zipfile import ZipFile
 
 from verisim.locale_loader import load_locale_names
 from verisim.models import Address, GeoPoint, PackMetadata
+
+LITE_COUNTRY_CODES = ("US", "GB", "CA", "AU", "IN", "DE")
+LITE_LOCALES = (
+    ("en_US", "latin"),
+    ("en_GB", "latin"),
+    ("en_CA", "latin"),
+    ("en_AU", "latin"),
+    ("en_IN", "latin"),
+    ("hi_IN", "devanagari"),
+    ("de_DE", "latin"),
+)
+COUNTRY_BY_LOCALE_REGION = {
+    "US": "US",
+    "GB": "GB",
+    "UK": "GB",
+    "CA": "CA",
+    "AU": "AU",
+    "IN": "IN",
+    "DE": "DE",
+}
 
 
 @dataclass(frozen=True)
@@ -55,6 +76,7 @@ class IndustryData:
     bio_templates: tuple[str, ...]
 
 
+@cache
 def _load_packaged_country(country_code: str) -> CountryData:
     resource = files("verisim.datasets.countries").joinpath(f"{country_code}.json")
     payload = json.loads(resource.read_text(encoding="utf-8"))
@@ -97,7 +119,12 @@ def load_geonames_postal_countries(
 ) -> dict[str, CountryData]:
     region_rows = defaultdict(lambda: defaultdict(dict))
     with ZipFile(path) as archive:
-        member = next(name for name in archive.namelist() if name.endswith(".txt"))
+        members = [
+            name
+            for name in archive.namelist()
+            if name.endswith(".txt") and name.rsplit("/", 1)[-1].lower() != "readme.txt"
+        ]
+        member = next(iter(members))
         with archive.open(member) as handle:
             for raw_line in handle:
                 fields = raw_line.decode("utf-8").rstrip("\n").split("\t")
@@ -138,7 +165,7 @@ def load_geonames_postal_countries(
                     CityData(
                         name=city_name,
                         postal_codes=tuple(sorted(city_data["postal_codes"])),
-                        area_codes=("555",),
+                        area_codes=_default_area_codes(country_code),
                         latitude=city_data["latitude"],
                         longitude=city_data["longitude"],
                     )
@@ -157,6 +184,14 @@ def load_geonames_postal_countries(
     return countries
 
 
+def _default_area_codes(country_code: str) -> tuple[str, ...]:
+    return {
+        "GB": ("20",),
+        "AU": ("2",),
+        "DE": ("30",),
+    }.get(country_code, ("555",))
+
+
 def _country_defaults(
     country_code: str,
 ) -> tuple[str, str, tuple[str, ...], tuple[str, ...]]:
@@ -173,6 +208,30 @@ def _country_defaults(
             ("MG", "Nehru", "Park", "Station", "Lake"),
             ("Road", "Marg", "Nagar", "Street", "Lane"),
         ),
+        "GB": (
+            "United Kingdom",
+            "+44",
+            ("High", "Station", "Church", "Victoria", "Market"),
+            ("Street", "Road", "Lane", "Close", "Way"),
+        ),
+        "CA": (
+            "Canada",
+            "+1",
+            ("King", "Queen", "Maple", "Lake", "Cedar"),
+            ("Street", "Avenue", "Road", "Drive", "Crescent"),
+        ),
+        "AU": (
+            "Australia",
+            "+61",
+            ("George", "Collins", "King", "Queen", "Harbour"),
+            ("Street", "Road", "Avenue", "Parade", "Drive"),
+        ),
+        "DE": (
+            "Germany",
+            "+49",
+            ("Haupt", "Bahnhof", "Garten", "Markt", "Schiller"),
+            ("Strasse", "Allee", "Weg", "Platz", "Ring"),
+        ),
     }
     return defaults.get(
         country_code,
@@ -186,16 +245,19 @@ def _country_defaults(
 
 
 class LiteDataPack:
-    """Small built-in data pack for coherent US data plus priority-country examples."""
+    """Small built-in data pack for coherent priority-country examples."""
 
     metadata = PackMetadata(
         name="lite",
         version="0.1.0",
-        scope="US English plus priority-country sample data",
+        scope="US, UK, Canada, Australia, India, and Germany sample data",
         provenance=(
             "Synthetic names, streets, companies, and contact handles authored "
             "for Verisim.",
-            "Postal/city/state relationships are coarse public geographic facts.",
+            "Postal/city/state relationships are derived from GeoNames postal "
+            "code data under Creative Commons Attribution 4.0.",
+            "UK full-code rows include Royal Mail copyright and database-right "
+            "attribution through the GeoNames source archive.",
             "Contacts and web domains use non-routable example.invalid-style "
             "outputs by default.",
         ),
@@ -204,26 +266,13 @@ class LiteDataPack:
 
     def __init__(self) -> None:
         self.countries = {
-            "US": _load_packaged_country("US"),
-            "IN": _load_packaged_country("IN"),
+            country_code: _load_packaged_country(country_code)
+            for country_code in LITE_COUNTRY_CODES
         }
-        en_us_given, en_us_family = load_locale_names("en_US", "latin")
-        en_in_given, en_in_family = load_locale_names("en_IN", "latin")
-        hi_in_given, hi_in_family = load_locale_names("hi_IN", "devanagari")
-        self.names = {
-            ("en_US", "latin"): NameData(
-                given=en_us_given,
-                family=en_us_family,
-            ),
-            ("en_IN", "latin"): NameData(
-                given=en_in_given,
-                family=en_in_family,
-            ),
-            ("hi_IN", "devanagari"): NameData(
-                given=hi_in_given,
-                family=hi_in_family,
-            ),
-        }
+        self.names = {}
+        for locale, script in LITE_LOCALES:
+            given, family = load_locale_names(locale, script)
+            self.names[(locale, script)] = NameData(given=given, family=family)
         self.industries = (
             IndustryData(
                 industry="Data Infrastructure",
@@ -327,9 +376,9 @@ class LiteDataPack:
         )
 
     def country_for_locale(self, locale: str) -> CountryData:
-        if locale.endswith("_IN"):
-            return self.countries["IN"]
-        return self.countries["US"]
+        region_code = locale.rsplit("_", 1)[-1].upper()
+        country_code = COUNTRY_BY_LOCALE_REGION.get(region_code, "US")
+        return self.countries[country_code]
 
     def names_for_locale(self, locale: str, script: str) -> NameData:
         if (locale, script) in self.names:

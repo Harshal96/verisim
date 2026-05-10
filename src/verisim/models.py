@@ -1,21 +1,24 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import Annotated, Literal
+from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-CountryCode = Annotated[
-    str, StringConstraints(pattern=r"^[A-Z]{2}$", min_length=2, max_length=2)
-]
-LocaleCode = Annotated[str, StringConstraints(pattern=r"^[a-z]{2}_[A-Z]{2}$")]
-PostalCode = Annotated[str, StringConstraints(min_length=3, max_length=12)]
-EmailAddress = Annotated[str, StringConstraints(pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")]
-Username = Annotated[
-    str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9._-]{1,62}[a-z0-9]$")
-]
-Url = Annotated[str, StringConstraints(pattern=r"^https?://[^/\s]+.*$")]
+from verisim.constants import CANADIAN_NANP_AREA_CODES
+from verisim.types import (
+    CountryCode,
+    EmailAddress,
+    EmailPattern,
+    FundingStage,
+    LegalEntityType,
+    LocaleCode,
+    PostalCode,
+    SizeBand,
+    Url,
+    Username,
+)
 
 
 class VerisimModel(BaseModel):
@@ -40,10 +43,11 @@ class PhoneNumber(VerisimModel):
         if raw.startswith("+1") or (len(digits) == 11 and digits.startswith("1")):
             core = digits[1:] if digits.startswith("1") else digits
             area, exchange, line = core[:3], core[3:6], core[6:10]
+            country_code = "CA" if area in CANADIAN_NANP_AREA_CODES else "US"
             return cls(
                 e164=f"+1{area}{exchange}{line}",
                 national=f"({area}) {exchange}-{line}",
-                country_code="US",
+                country_code=country_code,
                 country_calling_code="+1",
             )
         if raw.startswith("+91") or (len(digits) == 12 and digits.startswith("91")):
@@ -53,6 +57,30 @@ class PhoneNumber(VerisimModel):
                 national=f"{core[:5]} {core[5:10]}",
                 country_code="IN",
                 country_calling_code="+91",
+            )
+        if raw.startswith("+44") or digits.startswith("44"):
+            core = digits[2:] if digits.startswith("44") else digits
+            return cls(
+                e164=f"+44{core}",
+                national=f"0{core[:2]} {core[2:6]} {core[6:]}".strip(),
+                country_code="GB",
+                country_calling_code="+44",
+            )
+        if raw.startswith("+61") or digits.startswith("61"):
+            core = digits[2:] if digits.startswith("61") else digits
+            return cls(
+                e164=f"+61{core}",
+                national=f"0{core[:1]} {core[1:5]} {core[5:]}".strip(),
+                country_code="AU",
+                country_calling_code="+61",
+            )
+        if raw.startswith("+49") or digits.startswith("49"):
+            core = digits[2:] if digits.startswith("49") else digits
+            return cls(
+                e164=f"+49{core}",
+                national=f"0{core}",
+                country_code="DE",
+                country_calling_code="+49",
             )
         return cls(
             e164=f"+{digits}",
@@ -110,6 +138,24 @@ class Company(VerisimModel):
     address: Address | None = None
 
 
+class IncorporationJurisdiction(VerisimModel):
+    country: str
+    country_code: CountryCode
+    region: str
+    region_code: str
+
+    @field_validator("country_code", "region_code")
+    @classmethod
+    def uppercase_code(cls, value: str) -> str:
+        return value.upper()
+
+
+class RevenueRange(VerisimModel):
+    annual_min_usd: int = Field(ge=0)
+    annual_max_usd: int = Field(ge=0)
+    currency: Literal["USD"] = "USD"
+
+
 class Job(VerisimModel):
     title: str
     industry: str
@@ -155,6 +201,42 @@ class Socials(VerisimModel):
         ]
 
 
+class LeadershipMember(VerisimModel):
+    person: Person
+    title: str
+    department: str | None = None
+
+
+class CompanyRecord(VerisimModel):
+    id: UUID
+    name: str
+    legal_entity_type: LegalEntityType
+    founded_year: int = Field(ge=1800)
+    industry: str
+    size_band: SizeBand
+    employee_count: int = Field(ge=1)
+    revenue_range: RevenueRange
+    funding_stage: FundingStage
+    headquarters: Address
+    incorporated_in: IncorporationJurisdiction
+    domain: str
+    website: Website
+    email_pattern: EmailPattern
+    linkedin_slug: Username
+    departments: list[str] = Field(min_length=1)
+    leadership: list[LeadershipMember] = Field(min_length=1)
+
+    def as_company(self) -> Company:
+        return Company(
+            id=self.id,
+            name=self.name,
+            industry=self.industry,
+            domain=self.domain,
+            website=self.website,
+            address=self.headquarters,
+        )
+
+
 class PersonRecord(VerisimModel):
     id: UUID
     person: Person
@@ -171,11 +253,12 @@ class PersonRecord(VerisimModel):
 class DatasetSpec(VerisimModel):
     people: int = Field(default=10, ge=0)
     companies: int = Field(default=3, ge=0)
+    people_per_company: dict[SizeBand, int] | None = None
 
 
 class Dataset(VerisimModel):
     people: list[PersonRecord]
-    companies: list[Company]
+    companies: list[CompanyRecord]
 
 
 class DiagnosticIssue(VerisimModel):

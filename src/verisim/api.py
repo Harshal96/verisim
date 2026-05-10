@@ -10,6 +10,7 @@ from verisim.errors import ContextConflictError
 from verisim.models import (
     Address,
     Company,
+    CompanyRecord,
     Contact,
     Dataset,
     DatasetSpec,
@@ -21,6 +22,7 @@ from verisim.models import (
     Socials,
     Website,
 )
+from verisim.constants import LEGAL_ENTITY_TYPES_BY_COUNTRY, SIZE_BAND_EMPLOYEE_RANGES
 from verisim.packs import DataPackManager
 from verisim.providers import default_providers
 from verisim.registry import UniquenessRegistry
@@ -55,6 +57,7 @@ class Verisim:
                 Address: "address",
                 Person: "person",
                 Company: "company",
+                CompanyRecord: "company_record",
                 Job: "job",
                 Contact: "contact",
                 Socials: "socials",
@@ -116,18 +119,47 @@ class Verisim:
             raise ValueError(
                 "DatasetSpec.companies must be at least 1 when people are requested"
             )
-        companies = [self.generate(Company) for _ in range(spec.companies)]
-        people: list[PersonRecord] = []
-        for index in range(spec.people):
-            company = companies[index % len(companies)]
-            people.append(
-                self.generate(
-                    PersonRecord,
-                    context={"company": company},
-                    mode="repair",
-                )
+        if spec.people_per_company is not None and spec.companies < len(
+            spec.people_per_company
+        ):
+            raise ValueError(
+                "DatasetSpec.companies must cover every people_per_company size band"
             )
+        companies = self._company_records_for_spec(spec)
+        people: list[PersonRecord] = []
+        if spec.people_per_company is not None:
+            for company in companies:
+                company_people = spec.people_per_company.get(company.size_band, 0)
+                for _ in range(company_people):
+                    people.append(
+                        self.generate(
+                            PersonRecord,
+                            context={"company": company},
+                            mode="repair",
+                        )
+                    )
+        elif companies:
+            for index in range(spec.people):
+                company = companies[index % len(companies)]
+                people.append(
+                    self.generate(
+                        PersonRecord,
+                        context={"company": company},
+                        mode="repair",
+                    )
+                )
         return Dataset(people=people, companies=companies)
+
+    def _company_records_for_spec(self, spec: DatasetSpec) -> list[CompanyRecord]:
+        requested_bands = list(spec.people_per_company or {})
+        companies: list[CompanyRecord] = []
+        for size_band in requested_bands:
+            companies.append(
+                self.generate(CompanyRecord, context={"size_band": size_band})
+            )
+        while len(companies) < spec.companies:
+            companies.append(self.generate(CompanyRecord))
+        return companies
 
     def _facts_from_context(
         self, context: object | Mapping[str, object] | None, target: type
@@ -143,10 +175,16 @@ class Verisim:
     def _facts_from_mapping(self, mapping: Mapping[str, object]) -> dict[str, object]:
         facts: dict[str, object] = {}
         for key, value in mapping.items():
+            if key in {"company", "company_record"} and isinstance(
+                value, CompanyRecord
+            ):
+                self._add_fact(facts, value, target=object)
+                continue
             if key in {
                 "address",
                 "person",
                 "company",
+                "company_record",
                 "job",
                 "contact",
                 "socials",
@@ -155,6 +193,9 @@ class Verisim:
                 "bio",
                 "person_record",
                 "industry_data",
+                "industry",
+                "size_band",
+                "founded_year",
             }:
                 facts[key] = value
             else:
@@ -181,6 +222,15 @@ class Verisim:
             if target is not Socials:
                 facts["socials"] = value.socials
             return
+        if isinstance(value, CompanyRecord):
+            if target is CompanyRecord:
+                facts["company_record"] = value
+                return
+            facts["company_record"] = value
+            facts["company"] = value.as_company()
+            facts["industry"] = value.industry
+            facts["size_band"] = value.size_band
+            return
         fact_by_type = {
             Address: "address",
             Person: "person",
@@ -203,6 +253,7 @@ class Verisim:
         contact = facts.get("contact")
         job = facts.get("job")
         company = facts.get("company")
+        company_record = facts.get("company_record")
 
         if isinstance(address, Address):
             postal_codes = self.data.postal_codes_for_city(
@@ -232,6 +283,62 @@ class Verisim:
                         path="contact.phone",
                     )
                 )
+        if isinstance(company_record, CompanyRecord):
+            allowed_entity_types = LEGAL_ENTITY_TYPES_BY_COUNTRY.get(
+                company_record.incorporated_in.country_code, ()
+            )
+            if company_record.legal_entity_type not in allowed_entity_types:
+                conflicts.append(
+                    DiagnosticIssue(
+                        code="company.legal_entity_type.country",
+                        message=(
+                            f"legal entity type {company_record.legal_entity_type} "
+                            "does not match incorporation country "
+                            f"{company_record.incorporated_in.country_code}"
+                        ),
+                        path="company.legal_entity_type",
+                    )
+                )
+            if (
+                company_record.headquarters.country_code
+                != company_record.incorporated_in.country_code
+            ):
+                conflicts.append(
+                    DiagnosticIssue(
+                        code="company.incorporated_in.country",
+                        message=(
+                            "headquarters country "
+                            f"{company_record.headquarters.country_code} does not "
+                            "match incorporation country "
+                            f"{company_record.incorporated_in.country_code}"
+                        ),
+                        path="company.incorporated_in.country_code",
+                    )
+                )
+            low, high = SIZE_BAND_EMPLOYEE_RANGES[company_record.size_band]
+            if not low <= company_record.employee_count <= high:
+                conflicts.append(
+                    DiagnosticIssue(
+                        code="company.employee_count.size_band",
+                        message=(
+                            f"employee count {company_record.employee_count} is not "
+                            f"valid for size band {company_record.size_band}"
+                        ),
+                        path="company.employee_count",
+                    )
+                )
+        if isinstance(contact, Contact) and isinstance(company_record, CompanyRecord):
+            if not contact.email.endswith(f"@{company_record.domain}"):
+                conflicts.append(
+                    DiagnosticIssue(
+                        code="contact.email.company_domain",
+                        message=(
+                            f"email {contact.email} does not use company domain "
+                            f"{company_record.domain}"
+                        ),
+                        path="contact.email",
+                    )
+                )
         if (
             isinstance(job, Job)
             and isinstance(company, Company)
@@ -256,9 +363,16 @@ class Verisim:
         for conflict in conflicts:
             if conflict.code == "contact.phone.country":
                 repaired.pop("contact", None)
+            elif conflict.code == "contact.email.company_domain":
+                repaired.pop("contact", None)
             elif conflict.code == "address.postal_code":
                 repaired.pop("address", None)
             elif conflict.code == "job.company.industry":
                 repaired.pop("job", None)
+            elif conflict.code.startswith("company."):
+                repaired.pop("company_record", None)
+                repaired.pop("company", None)
+                repaired.pop("industry", None)
+                repaired.pop("size_band", None)
         repaired.pop("person_record", None)
         return repaired

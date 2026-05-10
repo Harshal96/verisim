@@ -62,6 +62,12 @@ uv run --extra dev python -B -m coverage run -m pytest -q
 uv run --extra dev python -B -m coverage report --fail-under=100
 ```
 
+The coverage settings live in `pyproject.toml` under `[tool.coverage.*]`. The
+report command prints per-file statement counts, missed-line counts, coverage
+percentages, and missing line numbers; use that output to decide which tests to
+add or update. The `--fail-under=100` threshold is the required minimum for the
+project, so changes should not be merged unless the coverage gate passes.
+
 ## Code Style
 
 - Keep generated data deterministic when a seed is provided.

@@ -23,7 +23,11 @@ classifiers = [
 ]
 dependencies = [
   "pydantic>=2.7,<3",
+  "typer>=0.12,<1",
 ]
+
+[project.scripts]
+verisim = "verisim.cli:app"
 
 [project.urls]
 Homepage = "https://github.com/Harshal96/verisim"

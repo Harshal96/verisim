@@ -1,17 +1,21 @@
 from __future__ import annotations
 
+import json
 import runpy
 import sys
 from random import Random
 
 import pytest
 
+import verisim.locale_loader as locale_loader
 from verisim import (
     Address,
     Company,
+    CompanyRecord,
     Contact,
     ContextConflictError,
     DatasetSpec,
+    IncorporationJurisdiction,
     Job,
     Person,
     PersonRecord,
@@ -23,10 +27,15 @@ from verisim import (
 )
 from verisim.ai import OfflineProseAdapter, ProseAdapter
 from verisim.context import ContextGraph, GenerationState
-from verisim.data import LiteDataPack
+from verisim.data import IndustryData, LiteDataPack, NameData
 from verisim.models import SocialAccount
 from verisim.packs import DataPackManager
-from verisim.providers import _industry_by_name
+from verisim.providers import (
+    CompanyRecordProvider,
+    IndustryProvider,
+    PersonProvider,
+    _industry_by_name,
+)
 from verisim.registry import UniquenessRegistry
 from verisim.utils import ascii_slug, choose_weighted, username_slug
 
@@ -34,6 +43,7 @@ from verisim.utils import ascii_slug, choose_weighted, username_slug
 def test_example_modules_can_run_as_scripts(capsys):
     for module_name in (
         "examples.basic_person",
+        "examples.company_record",
         "examples.context_repair",
         "examples.dataset_generation",
     ):
@@ -42,6 +52,7 @@ def test_example_modules_can_run_as_scripts(capsys):
 
     output = capsys.readouterr().out
     assert '"person"' in output
+    assert '"leadership"' in output
     assert '"conflicts"' in output
     assert '"companies"' in output
 
@@ -97,6 +108,13 @@ def test_dataset_requires_company_pool_when_people_are_requested():
         Verisim(seed=2).dataset(DatasetSpec(people=1, companies=0))
 
 
+def test_people_per_company_requires_enough_company_records_for_size_bands():
+    spec = DatasetSpec(companies=1, people_per_company={"seed": 1, "startup": 1})
+
+    with pytest.raises(ValueError, match="cover every people_per_company size band"):
+        Verisim(seed=2).dataset(spec)
+
+
 def test_mapping_context_accepts_unknown_keys_with_model_values():
     verisim = Verisim(seed=5)
     address = verisim.generate(Address)
@@ -115,6 +133,17 @@ def test_person_record_context_can_return_record_or_expand_nested_facts():
 
     assert same_record is record
     assert person == record.person
+
+
+def test_company_record_context_can_return_record_or_expand_company_facts():
+    verisim = Verisim(seed=6)
+    record = verisim.generate(CompanyRecord)
+
+    same_record = verisim.generate(CompanyRecord, context=record)
+    company = verisim.generate(Company, context=record)
+
+    assert same_record is record
+    assert company == record.as_company()
 
 
 def test_object_context_accepts_address_and_company_models():
@@ -192,6 +221,47 @@ def test_strict_mode_raises_for_job_company_industry_conflict():
         )
 
 
+def test_company_record_conflicts_are_explained_and_repaired():
+    verisim = Verisim(locale="de_DE", seed=11)
+    valid_record = verisim.generate(CompanyRecord, context={"size_band": "seed"})
+    invalid_record = valid_record.model_copy(
+        update={
+            "legal_entity_type": "GmbH",
+            "employee_count": 100,
+            "incorporated_in": IncorporationJurisdiction(
+                country="United States",
+                country_code="US",
+                region="Delaware",
+                region_code="DE",
+            ),
+        }
+    )
+    contact = Contact.synthetic(
+        email="person@outside.example.invalid", phone="+49 30 5550199"
+    )
+
+    diagnostics = verisim.generate(
+        PersonRecord,
+        context={"company": invalid_record, "contact": contact},
+        mode="explain",
+    )
+    repaired = verisim.generate(
+        PersonRecord,
+        context={"company": invalid_record, "contact": contact},
+        mode="repair",
+    )
+
+    assert {conflict.code for conflict in diagnostics.conflicts} == {
+        "company.legal_entity_type.country",
+        "company.incorporated_in.country",
+        "company.employee_count.size_band",
+        "contact.email.company_domain",
+    }
+    assert repaired.company.id != invalid_record.id
+    assert repaired.contact.email.endswith(f"@{repaired.company.domain}")
+    assert repaired.company.address.country_code == repaired.address.country_code
+
+
 def test_context_graph_reports_unsupported_model_and_missing_provider():
     verisim = Verisim(seed=10)
     state = GenerationState(
@@ -237,11 +307,18 @@ def test_lite_pack_lookup_helpers_cover_missing_cases_and_explicit_country_gener
     assert data.city_for_address(unknown_country_address) is None
     assert data.city_for_address(unknown_city_address) is None
     assert data.city_for_address(address) is not None
+    assert data.names_for_locale("es_MX", "latin") == data.names_for_locale(
+        "en_US", "latin"
+    )
     assert address.country_code == "IN"
 
 
 def test_model_helpers_cover_fallback_phone_website_and_social_handles():
     phone = PhoneNumber.from_string("+44 20 7946 0958")
+    canadian_phone = PhoneNumber.from_string("+1 416 555 0199")
+    australian_phone = PhoneNumber.from_string("+61 2 5555 0199")
+    german_phone = PhoneNumber.from_string("+49 30 5550199")
+    fallback_phone = PhoneNumber.from_string("5550199")
     website = Website.from_host("example.invalid", "about")
     socials = Socials(
         x=SocialAccount(
@@ -262,8 +339,13 @@ def test_model_helpers_cover_fallback_phone_website_and_social_handles():
         ),
     )
 
-    assert phone.country_code == "US"
+    assert phone.country_code == "GB"
     assert phone.e164 == "+442079460958"
+    assert canadian_phone.country_code == "CA"
+    assert australian_phone.country_code == "AU"
+    assert german_phone.country_code == "DE"
+    assert fallback_phone.e164 == "+5550199"
+    assert fallback_phone.country_code == "US"
     assert str(website) == "https://example.invalid/about"
     assert socials.handles() == ["avery.reed", "avery_reed", "avery-reed", "reedavery"]
 
@@ -292,6 +374,116 @@ def test_industry_lookup_falls_back_when_company_industry_is_unknown():
     industry = _industry_by_name(state, "Experimental Fictional Industry")
 
     assert industry == verisim.data.industries[0]
+
+
+def test_provider_fallback_paths_cover_large_name_sets_and_requested_facts():
+    verisim = Verisim(seed=13)
+    state = GenerationState(
+        random=Random(1),
+        data=verisim.data,
+        registry=UniquenessRegistry(),
+        locale="en_US",
+        output_language="en",
+        script="latin",
+        facts={"industry": "Financial Services", "founded_year": 2010},
+    )
+    names = NameData(
+        given=("Avery",),
+        family=tuple(f"Family{index}" for index in range(10_000)),
+    )
+    provider = PersonProvider()
+
+    given_name, family_name = provider._unique_name(state, names)
+    for username in (
+        "avery.reed",
+        "averyreed",
+        "avery_reed",
+        "areed",
+        "avery88",
+        "reed.avery",
+    ):
+        state.registry.reserve("username", username)
+    username = provider._username(state, "Avery", "Reed", 1988)
+    industry = IndustryProvider().generate(state)["industry_data"]
+    founded_year = CompanyRecordProvider()._founded_year(state, None)
+    departments = CompanyRecordProvider()._departments(
+        IndustryData(
+            industry="New Industry",
+            departments=("Research",),
+            levels=("Senior",),
+            titles=("Researcher",),
+            company_prefixes=("Example",),
+            company_suffixes=("Labs",),
+            bio_templates=("{name} works at {company}.",),
+        ),
+        "enterprise",
+    )
+
+    assert given_name == "Avery"
+    assert family_name.startswith("Family")
+    assert username == "avery.reed6"
+    assert getattr(industry, "industry") == "Financial Services"
+    assert founded_year == 2010
+    assert "Corporate Affairs" in departments
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    (
+        (
+            {
+                "locale": "other_LO",
+                "script": "latin",
+                "given": ["Avery"],
+                "family": ["Reed"],
+            },
+            "does not match",
+        ),
+        (
+            {
+                "locale": "zz_ZZ",
+                "script": "other",
+                "given": ["Avery"],
+                "family": ["Reed"],
+            },
+            "does not support",
+        ),
+        (
+            {"locale": "zz_ZZ", "script": "latin", "given": [], "family": ["Reed"]},
+            "has no given names",
+        ),
+        (
+            {"locale": "zz_ZZ", "script": "latin", "given": ["Avery"], "family": []},
+            "has no family names",
+        ),
+        (
+            {
+                "locale": "zz_ZZ",
+                "script": "latin",
+                "given": ["Avery"],
+                "family": ["Reed", "Reed"],
+            },
+            "contains duplicate family names",
+        ),
+    ),
+)
+def test_locale_loader_rejects_invalid_name_payloads(monkeypatch, payload, message):
+    class FakeLocales:
+        def joinpath(self, name: str) -> object:
+            class FakeResource:
+                def __init__(self, resource_name: str) -> None:
+                    self.name = resource_name
+
+                def read_text(self, encoding: str) -> str:
+                    return json.dumps(payload)
+
+            return FakeResource(name)
+
+    locale_loader.load_locale_names.cache_clear()
+    monkeypatch.setattr(locale_loader, "files", lambda _: FakeLocales())
+
+    with pytest.raises(ValueError, match=message):
+        locale_loader.load_locale_names("zz_ZZ", "latin")
 
 
 def test_uniqueness_registry_contains_values_and_reports_exhaustion():

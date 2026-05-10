@@ -14,69 +14,97 @@ from verisim import (
     Socials,
     Verisim,
 )
-from verisim.data import load_geonames_postal_countries
+from verisim.data import LITE_COUNTRY_CODES, load_geonames_postal_countries
 
 
 def test_locale_name_data_comes_from_packaged_json_files():
     locale_files = files("verisim.datasets.locales")
-    en_us_payload = json.loads(locale_files.joinpath("en_US.json").read_text())
-    en_in_payload = json.loads(locale_files.joinpath("en_IN.json").read_text())
-    hi_in_payload = json.loads(locale_files.joinpath("hi_IN.json").read_text())
+    requested_locales = (
+        ("en_US", "latin"),
+        ("en_GB", "latin"),
+        ("en_CA", "latin"),
+        ("en_AU", "latin"),
+        ("en_IN", "latin"),
+        ("hi_IN", "devanagari"),
+        ("de_DE", "latin"),
+    )
 
     verisim = Verisim(locale="en_US", seed=99)
-    en_us_names = verisim.data.names_for_locale("en_US", "latin")
-    en_in_names = verisim.data.names_for_locale("en_IN", "latin")
-    hi_in_names = verisim.data.names_for_locale("hi_IN", "devanagari")
 
-    assert en_us_payload["locale"] == "en_US"
-    assert en_us_payload["script"] == "latin"
-    assert tuple(en_us_payload["given"]) == en_us_names.given
-    assert tuple(en_us_payload["family"]) == en_us_names.family
-    assert len(en_us_payload["given"]) == 1_000
-    assert len(set(en_us_payload["given"])) == len(en_us_payload["given"])
-    assert len(en_us_payload["family"]) == 1_000
-    assert len(set(en_us_payload["family"])) == len(en_us_payload["family"])
-    assert en_in_payload["locale"] == "en_IN"
-    assert en_in_payload["script"] == "latin"
-    assert tuple(en_in_payload["given"]) == en_in_names.given
-    assert tuple(en_in_payload["family"]) == en_in_names.family
-    assert all(name.isascii() for name in en_in_payload["given"])
-    assert hi_in_payload["locale"] == "hi_IN"
-    assert hi_in_payload["script"] == "devanagari"
-    assert tuple(hi_in_payload["given"]) == hi_in_names.given
-    assert tuple(hi_in_payload["family"]) == hi_in_names.family
-    assert any(not name.isascii() for name in hi_in_payload["given"])
+    for locale, script in requested_locales:
+        payload = json.loads(locale_files.joinpath(f"{locale}.json").read_text())
+        names = verisim.data.names_for_locale(locale, script)
+
+        assert payload["locale"] == locale
+        assert payload["script"] == script
+        assert tuple(payload["given"]) == names.given
+        assert tuple(payload["family"]) == names.family
+        assert len(payload["given"]) == 1_000
+        assert len(set(payload["given"])) == len(payload["given"])
+        assert len(payload["family"]) == 1_000
+        assert len(set(payload["family"])) == len(payload["family"])
+        if locale == "hi_IN":
+            assert any(not name.isascii() for name in payload["given"])
 
 
 def test_address_data_comes_from_packaged_country_json_files():
     country_files = files("verisim.datasets.countries")
-    us_payload = json.loads(country_files.joinpath("US.json").read_text())
-    in_payload = json.loads(country_files.joinpath("IN.json").read_text())
+    minimum_city_counts = {
+        "US": 1_000,
+        "GB": 5_000,
+        "CA": 5_000,
+        "AU": 1_000,
+        "IN": 1_000,
+        "DE": 1_000,
+    }
+    minimum_postal_code_counts = {
+        "US": 1_000,
+        "GB": 100_000,
+        "CA": 100_000,
+        "AU": 1_000,
+        "IN": 1_000,
+        "DE": 1_000,
+    }
 
     verisim = Verisim(locale="en_US", seed=99)
-    us_country = verisim.data.countries["US"]
-    in_country = verisim.data.countries["IN"]
-    us_postal_codes = [
-        postal_code
-        for region in us_payload["regions"]
-        for city in region["cities"]
-        for postal_code in city["postal_codes"]
-    ]
 
-    assert us_payload["code"] == us_country.code
-    assert us_payload["name"] == us_country.name
-    assert tuple(us_payload["street_names"]) == verisim.data.street_names_for_country(
-        "US"
-    )
-    assert len(us_postal_codes) == 20
-    assert len(set(us_postal_codes)) == 20
-    assert in_payload["code"] == in_country.code
-    assert in_payload["name"] == in_country.name
+    for country_code in LITE_COUNTRY_CODES:
+        payload = json.loads(country_files.joinpath(f"{country_code}.json").read_text())
+        country = verisim.data.countries[country_code]
+        city_count = sum(len(region["cities"]) for region in payload["regions"])
+        postal_codes = [
+            postal_code
+            for region in payload["regions"]
+            for city in region["cities"]
+            for postal_code in city["postal_codes"]
+        ]
+
+        assert payload["code"] == country.code
+        assert payload["name"] == country.name
+        assert tuple(payload["street_names"]) == verisim.data.street_names_for_country(
+            country_code
+        )
+        assert city_count >= minimum_city_counts[country_code]
+        assert len(postal_codes) >= minimum_postal_code_counts[country_code]
+        for region in payload["regions"]:
+            for city in region["cities"]:
+                assert city["postal_codes"]
+                assert len(set(city["postal_codes"])) == len(city["postal_codes"])
+                assert -90 <= city["latitude"] <= 90
+                assert -180 <= city["longitude"] <= 180
+
+
+def test_packaged_country_data_is_cached_between_instances():
+    first = Verisim(locale="en_US", seed=1).data.countries["US"]
+    second = Verisim(locale="en_US", seed=2).data.countries["US"]
+
+    assert first is second
 
 
 def test_geonames_postal_zip_can_be_read_as_country_address_data(tmp_path):
     archive = tmp_path / "postal.zip"
     rows = [
+        "too\tshort",
         "\t".join(
             (
                 "US",
@@ -125,16 +153,53 @@ def test_geonames_postal_zip_can_be_read_as_country_address_data(tmp_path):
                 "4",
             )
         ),
+        "\t".join(
+            (
+                "GB",
+                "SW1A 1AA",
+                "Westminster",
+                "England",
+                "ENG",
+                "Greater London",
+                "",
+                "",
+                "",
+                "51.501",
+                "-0.141",
+                "4",
+            )
+        ),
+        "\t".join(
+            (
+                "DE",
+                "10115",
+                "Berlin",
+                "Berlin",
+                "BE",
+                "Berlin",
+                "11000",
+                "",
+                "",
+                "52.532",
+                "13.384",
+                "4",
+            )
+        ),
     ]
     with ZipFile(archive, "w") as zip_file:
+        zip_file.writestr("readme.txt", "GeoNames postal data readme")
         zip_file.writestr("allCountries.txt", "\n".join(rows))
 
-    countries = load_geonames_postal_countries(archive, country_codes={"US", "IN"})
+    countries = load_geonames_postal_countries(
+        archive, country_codes={"US", "IN", "GB"}
+    )
 
     assert countries["US"].regions[0].cities[0].name == "New York"
     assert countries["US"].regions[0].cities[0].postal_codes == ("10001", "10003")
+    assert countries["GB"].regions[0].cities[0].area_codes == ("20",)
     assert countries["IN"].regions[0].name == "Maharashtra"
     assert countries["IN"].regions[0].cities[0].postal_codes == ("400001",)
+    assert "DE" not in countries
 
 
 def test_person_record_generates_coherent_fields_for_us_lite():
@@ -180,19 +245,42 @@ def test_en_indian_locale_can_output_latin_names_and_country_correct_phone():
     assert record.address.country_code == "IN"
     assert record.contact.phone.country_code == "IN"
     assert record.contact.phone.e164.startswith("+91")
-    assert record.person.given_name in {
-        "Aarav",
-        "Ananya",
-        "Isha",
-        "Kabir",
-        "Meera",
-        "Om",
-        "Prakash",
-        "Rakesh",
-    }
+    assert (
+        record.person.given_name
+        in verisim.data.names_for_locale("en_IN", "latin").given
+    )
     assert record.person.name.isascii()
     assert record.address.postal_code in verisim.data.postal_codes_for_city(
         country_code="IN",
+        region_code=record.address.region_code,
+        city=record.address.city,
+    )
+
+
+@pytest.mark.parametrize(
+    ("locale", "country_code", "calling_code"),
+    (
+        ("en_GB", "GB", "+44"),
+        ("en_CA", "CA", "+1"),
+        ("en_AU", "AU", "+61"),
+        ("de_DE", "DE", "+49"),
+    ),
+)
+def test_new_lite_locales_generate_country_correct_records(
+    locale: str, country_code: str, calling_code: str
+):
+    verisim = Verisim(locale=locale, output_language=locale[:2], seed=13)
+
+    record = verisim.generate(PersonRecord)
+
+    assert record.address.country_code == country_code
+    assert record.contact.phone.country_code == country_code
+    assert record.contact.phone.e164.startswith(calling_code)
+    assert (
+        record.person.given_name in verisim.data.names_for_locale(locale, "latin").given
+    )
+    assert record.address.postal_code in verisim.data.postal_codes_for_city(
+        country_code=country_code,
         region_code=record.address.region_code,
         city=record.address.city,
     )
@@ -205,16 +293,10 @@ def test_hindi_locale_outputs_hindi_names_and_country_correct_phone():
 
     assert record.address.country_code == "IN"
     assert record.contact.phone.country_code == "IN"
-    assert record.person.given_name in {
-        "आरव",
-        "अनन्या",
-        "ईशा",
-        "कबीर",
-        "मीरा",
-        "ओम",
-        "प्रकाश",
-        "राकेश",
-    }
+    assert (
+        record.person.given_name
+        in verisim.data.names_for_locale("hi_IN", "devanagari").given
+    )
     assert not record.person.name.isascii()
 
 
@@ -334,7 +416,7 @@ def test_pack_metadata_records_scope_version_and_provenance():
 
     assert metadata.name == "lite"
     assert metadata.version == "0.1.0"
-    assert metadata.scope == "US English plus priority-country sample data"
+    assert metadata.scope == "US, UK, Canada, Australia, India, and Germany sample data"
     assert metadata.provenance
     assert metadata.signed is True
 

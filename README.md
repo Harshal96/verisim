@@ -30,12 +30,98 @@ isolation:
 - every social profile reuses the same handle,
 - the address may look formatted but not geographically coherent.
 
+Here is what that looks like in practice:
+
+<table>
+<thead>
+<tr>
+<th>Faker: plausible fields, isolated from each other</th>
+<th>Verisim: one generated person, shared context</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>
+<pre lang="python"><code>from faker import Faker
+
+fake = Faker("en_US")
+
+person = {
+    "name": fake.name(),
+    "username": fake.user_name(),
+    "email": fake.email(),
+    "phone": fake.phone_number(),
+    "address": fake.address(),
+    "job": fake.job(),
+    "company": fake.company(),
+    "bio": fake.sentence(),
+    "website": fake.url(),
+}</code></pre>
+</td>
+<td>
+<pre lang="python"><code>from verisim import PersonRecord, Verisim
+
+v = Verisim(locale="en_US", seed=123)
+record = v.generate(PersonRecord)
+
+person = {
+    "name": record.person.name,
+    "username": record.person.username,
+    "email": record.contact.email,
+    "phone": record.contact.phone.e164,
+    "address": (
+        f"{record.address.city}, "
+        f"{record.address.region_code} "
+        f"{record.address.postal_code}"
+    ),
+    "job": record.job.title,
+    "company": record.company.name,
+    "bio": record.bio,
+    "website": record.website.url,
+}</code></pre>
+</td>
+</tr>
+<tr>
+<td>
+<pre lang="json"><code>{
+  "name": "Maya Rao",
+  "username": "thomas77",
+  "email": "melissa.watson@example.net",
+  "phone": "+1-202-555-0188",
+  "address": "4896 James Station\nPhoenix, AZ 85004",
+  "job": "Marine scientist",
+  "company": "Northstar Medical Group",
+  "bio": "Writes about fintech compliance.",
+  "website": "https://miller-johnson.example.org/"
+}</code></pre>
+<p>Each value is believable alone. Together, it is a person whose name, login, inbox, job, company, bio, and website all point in different directions.</p>
+</td>
+<td>
+<pre lang="json"><code>{
+  "name": "Brooke Garcia",
+  "username": "brooke.garcia",
+  "email": "brooke.garcia@kindred-medical-group.example.invalid",
+  "phone": "+14155550000",
+  "address": "San Francisco, CA 94107",
+  "job": "Product Manager",
+  "company": "Kindred Medical Group",
+  "bio": "Brooke Garcia works as a Product Manager at Kindred Medical Group...",
+  "website": "https://brooke.garcia.example.invalid"
+}</code></pre>
+<p>The same facts carry through the record: name to username, email, website, city-aware contact data, company, job, and bio.</p>
+</td>
+</tr>
+</tbody>
+</table>
+
 Verisim treats fake data as a domain modeling problem. It generates an aggregate
 record through a dependency-aware context graph, so later fields can use facts
 from earlier fields. Address generation knows about country, region, city, and
 postal code. Contact generation knows about the address country. Social
 generation knows about the person, job, and company. Bio generation knows about
-the job and industry.
+the job and industry. Company records carry their own scale, legal form,
+departments, leadership, domains, and email pattern, and those facts propagate
+when generating people for that company.
 
 The result is synthetic data that is still safe and fake, but believable enough
 for demos, seed data, tests, prototypes, and synthetic datasets.
@@ -98,6 +184,47 @@ print(record.bio)
 print(record.model_dump_json())
 ```
 
+## Command Line Usage
+
+Verisim also installs a Faker-inspired CLI:
+
+```bash
+verisim [OPTIONS] COMMAND [ARGS]...
+```
+
+Generate one coherent person record:
+
+```bash
+uv run verisim person-record --seed 123
+```
+
+Generate repeated records as JSON lines:
+
+```bash
+uv run verisim person-record -r 3 --locale en_US --seed 123
+```
+
+Generate another supported target:
+
+```bash
+uv run verisim company-record --locale en_US --indent 2
+```
+
+Generate a coherent dataset:
+
+```bash
+uv run verisim dataset --people 40 --companies 6 --seed 7 --indent 2
+```
+
+Write output to a file:
+
+```bash
+uv run verisim person-record --repeat 10 --output people.jsonl
+```
+
+Supported record commands are `person-record`, `person`, `company-record`,
+`company`, `address`, `contact`, `job`, `socials`, and `website`.
+
 Example shape:
 
 ```python
@@ -107,7 +234,7 @@ Example shape:
         "username": "brooke.garcia"
     },
     "contact": {
-        "email": "brooke.garcia@san-francisco.example.invalid",
+        "email": "brooke.garcia@kindred-medical-group.example.invalid",
         "phone": {
             "e164": "+14155550000",
             "country_code": "US"
@@ -161,6 +288,8 @@ result.
 ```text
 Address -> Contact
 Person + Address -> Contact
+Industry + founded_year -> CompanyRecord
+CompanyRecord -> Company + Contact + Job
 Person + Job + Company -> Socials
 Person + Job + Company -> Bio
 Person + Address + Contact + Job + Company + Socials -> PersonRecord
@@ -170,24 +299,31 @@ Person + Address + Contact + Job + Company + Socials -> PersonRecord
 
 Generated contact details are non-routable by default. Emails and websites use
 synthetic `.example.invalid` domains, while still preserving realistic local
-parts, hosts, formats, and relationships.
+parts, hosts, formats, and relationships. When a person is generated with
+company context, their email uses the company's domain and email pattern.
 
 ## Generate Related Datasets
 
-Verisim can generate a small coherent dataset with people assigned to generated
-companies:
+Verisim can generate coherent datasets with people assigned to generated
+company records:
 
 ```python
 from verisim import DatasetSpec, Verisim
 
 v = Verisim(seed=7)
-dataset = v.dataset(DatasetSpec(people=40, companies=6))
+dataset = v.dataset(
+    DatasetSpec(
+        companies=3,
+        people_per_company={"seed": 8, "startup": 25, "mid-market": 120},
+    )
+)
 
 assert dataset.people[0].company.id in {company.id for company in dataset.companies}
 ```
 
 The dataset path uses the same context-aware providers as single-record
-generation, so uniqueness and domain consistency are preserved.
+generation, so uniqueness, email domains, job industries, company size bands,
+and department distribution are preserved.
 
 ## Use Existing Context
 
@@ -211,6 +347,19 @@ address = Address(
 record = v.generate(PersonRecord, context={"address": address}, mode="repair")
 ```
 
+Company context works the same way across calls:
+
+```python
+from verisim import CompanyRecord, PersonRecord, Verisim
+
+v = Verisim(seed=7)
+company = v.generate(CompanyRecord, context={"size_band": "startup"})
+employee = v.generate(PersonRecord, context={"company": company})
+
+assert employee.contact.email.endswith(f"@{company.domain}")
+assert employee.job.department in company.departments
+```
+
 Conflict modes:
 
 - `strict`: raise when supplied context contradicts model invariants.
@@ -225,7 +374,7 @@ separate knobs.
 ```python
 from verisim import PersonRecord, Verisim
 
-v = Verisim(locale="hi_IN", output_language="en", script="latin", seed=13)
+v = Verisim(locale="en_IN", output_language="en", script="latin", seed=13)
 record = v.generate(PersonRecord)
 
 print(record.person.name)
@@ -236,14 +385,38 @@ print(record.contact.phone.e164)
 This supports Indian names in Latin script, such as `Rakesh`, `Om`, or
 `Prakash`, while keeping address and phone fields country-aware.
 
+The lite pack includes US, UK, Canadian, Australian, Indian, and German
+coverage. The packaged locale codes are `en_US`, `en_GB`, `en_CA`, `en_AU`,
+`en_IN`, `hi_IN`, and `de_DE`; each includes 1,000 given names and 1,000 family
+names.
+
+Country address data for `US`, `GB`, `CA`, `AU`, `IN`, and `DE` is generated
+from open [GeoNames postal-code archives](http://download.geonames.org/export/zip/)
+with Verisim-authored synthetic street
+names and suffixes. The packaged data currently contains 53 US regions, 6 UK
+regions, 13 Canadian regions, 8 Australian regions, 35 Indian regions, and 33
+German regions, covering more than 2.8 million postal-code-to-city
+relationships. Canada and the UK use the GeoNames full-code archives; the
+standard GeoNames country ZIPs are used for the other supported countries. The
+source data is useful for coherent synthetic generation, not postal authority
+validation.
+
+To refresh the packaged country JSON files from GeoNames:
+
+```bash
+uv run python scripts/build_country_datasets.py --download
+```
+
 ## Current Features
 
-- Pydantic v2 domain models for `PersonRecord`, `Person`, `Address`, `Contact`,
-  `PhoneNumber`, `Job`, `Company`, `Socials`, `Website`, and datasets.
+- Pydantic v2 domain models for `PersonRecord`, `CompanyRecord`, `Person`,
+  `Address`, `Contact`, `PhoneNumber`, `Job`, `Company`, `Socials`, `Website`,
+  and datasets.
 - Context graph provider engine.
 - Per-run uniqueness registry for IDs, usernames, emails, phones, companies,
   and social handles.
-- Lite data pack with US English generation and priority-country sample support.
+- Lite data pack with US, UK, Canada, Australia, India, and Germany sample
+  support.
 - Non-routable synthetic emails, websites, and avatar URLs.
 - Strict, repair, and explain modes for existing context.
 - Importable and runnable `examples` package.
@@ -274,6 +447,7 @@ Run the included examples:
 
 ```bash
 uv run python -m examples.basic_person
+uv run python -m examples.company_record
 uv run python -m examples.context_repair
 uv run python -m examples.dataset_generation
 ```
@@ -281,9 +455,10 @@ uv run python -m examples.dataset_generation
 Import them from Python:
 
 ```python
-from examples import basic_person, context_repair, dataset_generation
+from examples import basic_person, company_record, context_repair, dataset_generation
 
 record = basic_person.generate_example(seed=123)
+company = company_record.generate_example(seed=123, size_band="startup")
 diagnostics, repaired = context_repair.generate_example(seed=123)
 dataset = dataset_generation.generate_example(seed=123, people=5, companies=2)
 ```
