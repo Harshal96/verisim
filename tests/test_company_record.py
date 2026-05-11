@@ -22,11 +22,29 @@ LEGAL_ENTITY_TYPES = {
     "AU": {"Pty Ltd", "Ltd"},
     "IN": {"Pvt Ltd", "LLP", "Ltd"},
     "DE": {"GmbH"},
+    "MX": {"S.A. de C.V.", "S. de R.L."},
+    "JP": {"Kabushiki Kaisha", "Godo Kaisha"},
+    "FR": {"SARL", "SAS", "SA"},
+    "BR": {"Ltda.", "S.A."},
+    "CN": {"Ltd.", "Co., Ltd."},
 }
 
 
 @pytest.mark.parametrize(
-    "locale", ("en_US", "en_GB", "en_CA", "en_AU", "en_IN", "de_DE")
+    "locale",
+    (
+        "en_US",
+        "en_GB",
+        "en_CA",
+        "en_AU",
+        "en_IN",
+        "de_DE",
+        "es_MX",
+        "ja_JP",
+        "fr_FR",
+        "pt_BR",
+        "zh_CN",
+    ),
 )
 def test_company_record_generates_coherent_layers(locale: str):
     company = Verisim(locale=locale, seed=31).generate(CompanyRecord)

@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from verisim.constants import CANADIAN_NANP_AREA_CODES
 from verisim.types import (
+    BillingInterval,
     CountryCode,
     EmailAddress,
     EmailPattern,
@@ -15,6 +16,9 @@ from verisim.types import (
     LegalEntityType,
     LocaleCode,
     PostalCode,
+    PricingModel,
+    ProductLifecycleStage,
+    ProductType,
     SizeBand,
     Url,
     Username,
@@ -82,6 +86,47 @@ class PhoneNumber(VerisimModel):
                 country_code="DE",
                 country_calling_code="+49",
             )
+        if raw.startswith("+52") or (len(digits) >= 12 and digits.startswith("52")):
+            core = digits[2:] if digits.startswith("52") else digits
+            return cls(
+                e164=f"+52{core}",
+                national=f"{core[:2]} {core[2:6]} {core[6:]}".strip(),
+                country_code="MX",
+                country_calling_code="+52",
+            )
+        if raw.startswith("+81") or (len(digits) >= 11 and digits.startswith("81")):
+            core = digits[2:] if digits.startswith("81") else digits
+            return cls(
+                e164=f"+81{core}",
+                national=f"0{core[:1]} {core[1:5]} {core[5:]}".strip(),
+                country_code="JP",
+                country_calling_code="+81",
+            )
+        if raw.startswith("+33") or (len(digits) >= 11 and digits.startswith("33")):
+            core = digits[2:] if digits.startswith("33") else digits
+            national = f"0{core[:1]} {core[1:3]} {core[3:5]} " f"{core[5:7]} {core[7:]}"
+            return cls(
+                e164=f"+33{core}",
+                national=national.strip(),
+                country_code="FR",
+                country_calling_code="+33",
+            )
+        if raw.startswith("+55") or (len(digits) >= 12 and digits.startswith("55")):
+            core = digits[2:] if digits.startswith("55") else digits
+            return cls(
+                e164=f"+55{core}",
+                national=f"({core[:2]}) {core[2:6]}-{core[6:]}",
+                country_code="BR",
+                country_calling_code="+55",
+            )
+        if raw.startswith("+86") or (len(digits) >= 12 and digits.startswith("86")):
+            core = digits[2:] if digits.startswith("86") else digits
+            return cls(
+                e164=f"+86{core}",
+                national=f"0{core[:2]} {core[2:6]} {core[6:]}".strip(),
+                country_code="CN",
+                country_calling_code="+86",
+            )
         return cls(
             e164=f"+{digits}",
             national=raw,
@@ -138,6 +183,16 @@ class Company(VerisimModel):
     address: Address | None = None
 
 
+class Product(VerisimModel):
+    id: UUID
+    company_id: UUID
+    name: str
+    slug: Username
+    industry: str
+    category: str
+    website: Website
+
+
 class IncorporationJurisdiction(VerisimModel):
     country: str
     country_code: CountryCode
@@ -154,6 +209,21 @@ class RevenueRange(VerisimModel):
     annual_min_usd: int = Field(ge=0)
     annual_max_usd: int = Field(ge=0)
     currency: Literal["USD"] = "USD"
+
+
+class PriceRange(VerisimModel):
+    amount_min_usd: int = Field(ge=0)
+    amount_max_usd: int = Field(ge=0)
+    currency: Literal["USD"] = "USD"
+
+
+class ProductPlan(VerisimModel):
+    sku: str
+    name: str
+    description: str
+    billing_interval: BillingInterval
+    price_range: PriceRange
+    included_features: list[str] = Field(min_length=1)
 
 
 class Job(VerisimModel):
@@ -237,6 +307,37 @@ class CompanyRecord(VerisimModel):
         )
 
 
+class ProductRecord(VerisimModel):
+    id: UUID
+    company: Company
+    name: str
+    slug: Username
+    product_type: ProductType
+    lifecycle_stage: ProductLifecycleStage
+    launch_year: int = Field(ge=1800)
+    industry: str
+    category: str
+    owner_department: str
+    target_departments: list[str] = Field(min_length=1)
+    target_size_band: SizeBand
+    description: str
+    website: Website
+    pricing_model: PricingModel
+    features: list[str] = Field(min_length=1)
+    plans: list[ProductPlan] = Field(min_length=1)
+
+    def as_product(self) -> Product:
+        return Product(
+            id=self.id,
+            company_id=self.company.id,
+            name=self.name,
+            slug=self.slug,
+            industry=self.industry,
+            category=self.category,
+            website=self.website,
+        )
+
+
 class PersonRecord(VerisimModel):
     id: UUID
     person: Person
@@ -253,12 +354,14 @@ class PersonRecord(VerisimModel):
 class DatasetSpec(VerisimModel):
     people: int = Field(default=10, ge=0)
     companies: int = Field(default=3, ge=0)
+    products: int = Field(default=0, ge=0)
     people_per_company: dict[SizeBand, int] | None = None
 
 
 class Dataset(VerisimModel):
     people: list[PersonRecord]
     companies: list[CompanyRecord]
+    products: list[ProductRecord] = Field(default_factory=list)
 
 
 class DiagnosticIssue(VerisimModel):

@@ -5,4 +5,5 @@ __all__ = [
     "company_record",
     "context_repair",
     "dataset_generation",
+    "product_record",
 ]

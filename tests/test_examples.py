@@ -1,5 +1,17 @@
-from examples import basic_person, company_record, context_repair, dataset_generation
-from verisim import CompanyRecord, Dataset, GenerationDiagnostics, PersonRecord
+from examples import (
+    basic_person,
+    company_record,
+    context_repair,
+    dataset_generation,
+    product_record,
+)
+from verisim import (
+    CompanyRecord,
+    Dataset,
+    GenerationDiagnostics,
+    PersonRecord,
+    ProductRecord,
+)
 
 
 def test_basic_person_example_returns_a_person_record():
@@ -37,3 +49,12 @@ def test_dataset_generation_example_returns_dataset():
     assert isinstance(dataset, Dataset)
     assert len(dataset.people) == 5
     assert len(dataset.companies) == 2
+
+
+def test_product_record_example_returns_a_product_record():
+    product = product_record.generate_example(seed=123)
+
+    assert isinstance(product, ProductRecord)
+    assert product.company.domain.endswith(".example.invalid")
+    assert product.website.host == product.company.domain
+    assert product.plans

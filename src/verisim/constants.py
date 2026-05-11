@@ -83,6 +83,11 @@ LEGAL_ENTITY_TYPES_BY_COUNTRY: dict[str, tuple[LegalEntityType, ...]] = {
     "AU": ("Pty Ltd", "Ltd"),
     "IN": ("Pvt Ltd", "LLP", "Ltd"),
     "DE": ("GmbH",),
+    "MX": ("S.A. de C.V.", "S. de R.L."),
+    "JP": ("Kabushiki Kaisha", "Godo Kaisha"),
+    "FR": ("SARL", "SAS", "SA"),
+    "BR": ("Ltda.", "S.A."),
+    "CN": ("Ltd.", "Co., Ltd."),
 }
 
 DEFAULT_REVENUE_PER_EMPLOYEE = 160_000

@@ -37,9 +37,33 @@ LegalEntityType = Literal[
     "Pvt Ltd",
     "LLP",
     "GmbH",
+    "S.A. de C.V.",
+    "S. de R.L.",
+    "Kabushiki Kaisha",
+    "Godo Kaisha",
+    "SARL",
+    "SAS",
+    "SA",
+    "Ltda.",
+    "S.A.",
+    "Co., Ltd.",
 ]
+ProductType = Literal[
+    "software",
+    "platform",
+    "data_product",
+    "managed_service",
+    "program",
+    "financial_product",
+]
+ProductLifecycleStage = Literal["beta", "launched", "growth", "mature"]
+PricingModel = Literal[
+    "subscription", "usage_based", "contract", "transaction", "project"
+]
+BillingInterval = Literal["monthly", "annual", "usage", "one_time"]
 
 __all__ = [
+    "BillingInterval",
     "CountryCode",
     "EmailAddress",
     "EmailPattern",
@@ -47,6 +71,9 @@ __all__ = [
     "LegalEntityType",
     "LocaleCode",
     "PostalCode",
+    "PricingModel",
+    "ProductLifecycleStage",
+    "ProductType",
     "SizeBand",
     "Url",
     "Username",

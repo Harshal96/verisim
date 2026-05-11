@@ -16,6 +16,7 @@ from verisim.models import (
     DatasetSpec,
     Job,
     PersonRecord,
+    ProductRecord,
     Socials,
     Website,
 )
@@ -51,6 +52,8 @@ TARGETS: dict[str, type[BaseModel]] = {
     "job": Job,
     "person": PersonRecord,
     "person-record": PersonRecord,
+    "product": ProductRecord,
+    "product-record": ProductRecord,
     "socials": Socials,
     "website": Website,
 }
@@ -158,6 +161,7 @@ for target_name, target_model in TARGETS.items():
 def dataset(
     people: Annotated[int, typer.Option("--people", min=0)] = 10,
     companies: Annotated[int, typer.Option("--companies", min=0)] = 3,
+    products: Annotated[int, typer.Option("--products", min=0)] = 0,
     locale: Annotated[str, typer.Option("--locale", "-l")] = "en_US",
     output_language: Annotated[str, typer.Option("--output-language")] = "en",
     script: Annotated[str, typer.Option("--script")] = "latin",
@@ -174,7 +178,9 @@ def dataset(
         seed=seed,
     )
     payload = _json(
-        verisim.dataset(DatasetSpec(people=people, companies=companies)),
+        verisim.dataset(
+            DatasetSpec(people=people, companies=companies, products=products)
+        ),
         json_indent,
     )
     _write(payload, output)

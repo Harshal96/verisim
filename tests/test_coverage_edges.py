@@ -46,6 +46,7 @@ def test_example_modules_can_run_as_scripts(capsys):
         "examples.company_record",
         "examples.context_repair",
         "examples.dataset_generation",
+        "examples.product_record",
     ):
         sys.modules.pop(module_name, None)
         runpy.run_module(module_name, run_name="__main__")
@@ -55,6 +56,7 @@ def test_example_modules_can_run_as_scripts(capsys):
     assert '"leadership"' in output
     assert '"conflicts"' in output
     assert '"companies"' in output
+    assert '"plans"' in output
 
 
 def test_offline_prose_adapter_and_protocol_method_are_exercised():
@@ -213,12 +215,33 @@ def test_strict_mode_raises_for_job_company_industry_conflict():
         company_id=company.id,
     )
 
-    with pytest.raises(ContextConflictError, match="job industry"):
+    with pytest.raises(ContextConflictError, match="job.company.industry"):
         verisim.generate(
             PersonRecord,
             context={"company": company, "job": mismatched_job},
             mode="strict",
         )
+
+
+def test_strict_conflict_error_message_omits_user_contact_values():
+    verisim = Verisim(locale="en_US", seed=10)
+    company = verisim.generate(CompanyRecord)
+    contact = Contact.synthetic(
+        email="person@outside.example.invalid", phone="+91 98765 43210"
+    )
+
+    with pytest.raises(ContextConflictError) as error:
+        verisim.generate(
+            PersonRecord,
+            context={"company": company, "contact": contact},
+            mode="strict",
+        )
+
+    message = str(error.value)
+    assert "contact.email.company_domain" in message
+    assert "person@outside.example.invalid" not in message
+    assert "+91" not in message
+    assert company.domain not in message
 
 
 def test_company_record_conflicts_are_explained_and_repaired():
@@ -307,7 +330,10 @@ def test_lite_pack_lookup_helpers_cover_missing_cases_and_explicit_country_gener
     assert data.city_for_address(unknown_country_address) is None
     assert data.city_for_address(unknown_city_address) is None
     assert data.city_for_address(address) is not None
-    assert data.names_for_locale("es_MX", "latin") == data.names_for_locale(
+    assert data.names_for_locale("es_MX", "latin") != data.names_for_locale(
+        "en_US", "latin"
+    )
+    assert data.names_for_locale("zz_ZZ", "latin") == data.names_for_locale(
         "en_US", "latin"
     )
     assert address.country_code == "IN"
@@ -318,6 +344,11 @@ def test_model_helpers_cover_fallback_phone_website_and_social_handles():
     canadian_phone = PhoneNumber.from_string("+1 416 555 0199")
     australian_phone = PhoneNumber.from_string("+61 2 5555 0199")
     german_phone = PhoneNumber.from_string("+49 30 5550199")
+    mexican_phone = PhoneNumber.from_string("+52 55 5555 0199")
+    japanese_phone = PhoneNumber.from_string("+81 3 5555 0199")
+    french_phone = PhoneNumber.from_string("+33 1 55 55 01 99")
+    brazilian_phone = PhoneNumber.from_string("+55 11 5555 0199")
+    chinese_phone = PhoneNumber.from_string("+86 10 5555 0199")
     fallback_phone = PhoneNumber.from_string("5550199")
     website = Website.from_host("example.invalid", "about")
     socials = Socials(
@@ -344,6 +375,11 @@ def test_model_helpers_cover_fallback_phone_website_and_social_handles():
     assert canadian_phone.country_code == "CA"
     assert australian_phone.country_code == "AU"
     assert german_phone.country_code == "DE"
+    assert mexican_phone.country_code == "MX"
+    assert japanese_phone.country_code == "JP"
+    assert french_phone.country_code == "FR"
+    assert brazilian_phone.country_code == "BR"
+    assert chinese_phone.country_code == "CN"
     assert fallback_phone.e164 == "+5550199"
     assert fallback_phone.country_code == "US"
     assert str(website) == "https://example.invalid/about"
@@ -441,7 +477,7 @@ def test_provider_fallback_paths_cover_large_name_sets_and_requested_facts():
         ),
         (
             {
-                "locale": "zz_ZZ",
+                "locale": "en_US",
                 "script": "other",
                 "given": ["Avery"],
                 "family": ["Reed"],
@@ -449,16 +485,16 @@ def test_provider_fallback_paths_cover_large_name_sets_and_requested_facts():
             "does not support",
         ),
         (
-            {"locale": "zz_ZZ", "script": "latin", "given": [], "family": ["Reed"]},
+            {"locale": "en_US", "script": "latin", "given": [], "family": ["Reed"]},
             "has no given names",
         ),
         (
-            {"locale": "zz_ZZ", "script": "latin", "given": ["Avery"], "family": []},
+            {"locale": "en_US", "script": "latin", "given": ["Avery"], "family": []},
             "has no family names",
         ),
         (
             {
-                "locale": "zz_ZZ",
+                "locale": "en_US",
                 "script": "latin",
                 "given": ["Avery"],
                 "family": ["Reed", "Reed"],
@@ -483,7 +519,31 @@ def test_locale_loader_rejects_invalid_name_payloads(monkeypatch, payload, messa
     monkeypatch.setattr(locale_loader, "files", lambda _: FakeLocales())
 
     with pytest.raises(ValueError, match=message):
-        locale_loader.load_locale_names("zz_ZZ", "latin")
+        locale_loader.load_locale_names("en_US", "latin")
+
+
+def test_locale_loader_rejects_unsupported_locale_before_resource_lookup(monkeypatch):
+    class ExplodingLocales:
+        def joinpath(self, name: str) -> object:
+            raise AssertionError(f"unexpected resource lookup for {name}")
+
+    locale_loader.load_locale_names.cache_clear()
+    monkeypatch.setattr(locale_loader, "files", lambda _: ExplodingLocales())
+
+    with pytest.raises(ValueError, match="unsupported locale"):
+        locale_loader.load_locale_names("../en_US", "latin")
+
+
+def test_locale_loader_rejects_unsupported_script_before_resource_lookup(monkeypatch):
+    class ExplodingLocales:
+        def joinpath(self, name: str) -> object:
+            raise AssertionError(f"unexpected resource lookup for {name}")
+
+    locale_loader.load_locale_names.cache_clear()
+    monkeypatch.setattr(locale_loader, "files", lambda _: ExplodingLocales())
+
+    with pytest.raises(ValueError, match="unsupported locale/script"):
+        locale_loader.load_locale_names("en_US", "../latin")
 
 
 def test_uniqueness_registry_contains_values_and_reports_exhaustion():

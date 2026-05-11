@@ -4,11 +4,37 @@ import json
 from functools import cache
 from importlib.resources import files
 
+SUPPORTED_LOCALE_SCRIPTS = frozenset(
+    {
+        ("en_US", "latin"),
+        ("en_GB", "latin"),
+        ("en_CA", "latin"),
+        ("en_AU", "latin"),
+        ("en_IN", "latin"),
+        ("hi_IN", "devanagari"),
+        ("de_DE", "latin"),
+        ("es_MX", "latin"),
+        ("ja_JP", "kanji"),
+        ("fr_FR", "latin"),
+        ("pt_BR", "latin"),
+        ("zh_CN", "han"),
+    }
+)
+SUPPORTED_LOCALES = frozenset(locale for locale, _ in SUPPORTED_LOCALE_SCRIPTS)
+
+
+def validate_locale_script(locale: str, script: str) -> None:
+    if locale not in SUPPORTED_LOCALES:
+        raise ValueError(f"unsupported locale {locale!r}")
+    if (locale, script) not in SUPPORTED_LOCALE_SCRIPTS:
+        raise ValueError(f"unsupported locale/script {locale!r}/{script!r}")
+
 
 @cache
 def load_locale_names(
     locale: str, script: str
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    validate_locale_script(locale, script)
     resource = files("verisim.datasets.locales").joinpath(f"{locale}.json")
     payload = json.loads(resource.read_text(encoding="utf-8"))
     if payload.get("locale") != locale:

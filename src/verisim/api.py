@@ -4,6 +4,7 @@ from collections.abc import Iterable, Mapping
 from random import Random
 from typing import Literal, TypeVar
 
+from verisim.constants import LEGAL_ENTITY_TYPES_BY_COUNTRY, SIZE_BAND_EMPLOYEE_RANGES
 from verisim.context import ContextGraph, GenerationState
 from verisim.data import LiteDataPack
 from verisim.errors import ContextConflictError
@@ -19,10 +20,11 @@ from verisim.models import (
     Job,
     Person,
     PersonRecord,
+    Product,
+    ProductRecord,
     Socials,
     Website,
 )
-from verisim.constants import LEGAL_ENTITY_TYPES_BY_COUNTRY, SIZE_BAND_EMPLOYEE_RANGES
 from verisim.packs import DataPackManager
 from verisim.providers import default_providers
 from verisim.registry import UniquenessRegistry
@@ -62,6 +64,8 @@ class Verisim:
                 Contact: "contact",
                 Socials: "socials",
                 Website: "website",
+                Product: "product",
+                ProductRecord: "product_record",
                 PersonRecord: "person_record",
             },
         )
@@ -115,9 +119,10 @@ class Verisim:
             yield self.generate(model, context=context)  # type: ignore[misc]
 
     def dataset(self, spec: DatasetSpec) -> Dataset:
-        if spec.people and spec.companies == 0:
+        if (spec.people or spec.products) and spec.companies == 0:
             raise ValueError(
-                "DatasetSpec.companies must be at least 1 when people are requested"
+                "DatasetSpec.companies must be at least 1 when people or products "
+                "are requested"
             )
         if spec.people_per_company is not None and spec.companies < len(
             spec.people_per_company
@@ -148,7 +153,14 @@ class Verisim:
                         mode="repair",
                     )
                 )
-        return Dataset(people=people, companies=companies)
+        products: list[ProductRecord] = []
+        if companies:
+            for index in range(spec.products):
+                company = companies[index % len(companies)]
+                products.append(
+                    self.generate(ProductRecord, context={"company": company})
+                )
+        return Dataset(people=people, companies=companies, products=products)
 
     def _company_records_for_spec(self, spec: DatasetSpec) -> list[CompanyRecord]:
         requested_bands = list(spec.people_per_company or {})
@@ -180,6 +192,11 @@ class Verisim:
             ):
                 self._add_fact(facts, value, target=object)
                 continue
+            if key in {"product", "product_record"} and isinstance(
+                value, ProductRecord
+            ):
+                self._add_fact(facts, value, target=object)
+                continue
             if key in {
                 "address",
                 "person",
@@ -191,6 +208,8 @@ class Verisim:
                 "website",
                 "avatar",
                 "bio",
+                "product",
+                "product_record",
                 "person_record",
                 "industry_data",
                 "industry",
@@ -231,10 +250,21 @@ class Verisim:
             facts["industry"] = value.industry
             facts["size_band"] = value.size_band
             return
+        if isinstance(value, ProductRecord):
+            if target is ProductRecord:
+                facts["product_record"] = value
+                return
+            facts["product_record"] = value
+            facts["product"] = value.as_product()
+            facts["company"] = value.company
+            facts["industry"] = value.industry
+            facts["size_band"] = value.target_size_band
+            return
         fact_by_type = {
             Address: "address",
             Person: "person",
             Company: "company",
+            Product: "product",
             Job: "job",
             Contact: "contact",
             Socials: "socials",
@@ -332,10 +362,7 @@ class Verisim:
                 conflicts.append(
                     DiagnosticIssue(
                         code="contact.email.company_domain",
-                        message=(
-                            f"email {contact.email} does not use company domain "
-                            f"{company_record.domain}"
-                        ),
+                        message="contact email does not use the company domain",
                         path="contact.email",
                     )
                 )

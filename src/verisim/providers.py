@@ -33,6 +33,9 @@ from verisim.models import (
     Person,
     PersonRecord,
     PhoneNumber,
+    PriceRange,
+    ProductPlan,
+    ProductRecord,
     RevenueRange,
     SocialAccount,
     Socials,
@@ -580,6 +583,54 @@ class ContactProvider:
                     country_code="DE",
                     country_calling_code="+49",
                 )
+            if country_code == "MX":
+                area = area_code("55")
+                subscriber = f"{55550000 + (sequence % 10_000):08d}"
+                return PhoneNumber(
+                    e164=f"+52{area}{subscriber}",
+                    national=f"{area} {subscriber[:4]} {subscriber[4:]}",
+                    country_code="MX",
+                    country_calling_code="+52",
+                )
+            if country_code == "JP":
+                area = area_code("3")
+                subscriber = f"{55550000 + (sequence % 10_000):08d}"
+                return PhoneNumber(
+                    e164=f"+81{area}{subscriber}",
+                    national=f"0{area} {subscriber[:4]} {subscriber[4:]}",
+                    country_code="JP",
+                    country_calling_code="+81",
+                )
+            if country_code == "FR":
+                area = area_code("1")
+                subscriber = f"{55550199 + (sequence % 10_000):08d}"
+                return PhoneNumber(
+                    e164=f"+33{area}{subscriber}",
+                    national=(
+                        f"0{area} {subscriber[:2]} {subscriber[2:4]} "
+                        f"{subscriber[4:6]} {subscriber[6:]}"
+                    ),
+                    country_code="FR",
+                    country_calling_code="+33",
+                )
+            if country_code == "BR":
+                area = area_code("11")
+                subscriber = f"{55550000 + (sequence % 10_000):08d}"
+                return PhoneNumber(
+                    e164=f"+55{area}{subscriber}",
+                    national=f"({area}) {subscriber[:4]}-{subscriber[4:]}",
+                    country_code="BR",
+                    country_calling_code="+55",
+                )
+            if country_code == "CN":
+                area = area_code("10")
+                subscriber = f"{55550000 + (sequence % 10_000):08d}"
+                return PhoneNumber(
+                    e164=f"+86{area}{subscriber}",
+                    national=f"0{area} {subscriber[:4]} {subscriber[4:]}",
+                    country_code="CN",
+                    country_calling_code="+86",
+                )
 
             area = area_code("555")
             line = sequence % 10_000
@@ -717,6 +768,323 @@ class BioProvider:
         }
 
 
+class ProductRecordProvider:
+    provides = ("product_record", "product")
+    requires = ("company", "industry_data")
+
+    def generate(self, state: GenerationState) -> dict[str, object]:
+        company = state.facts["company"]
+        industry = state.facts["industry_data"]
+        assert isinstance(company, Company)
+        assert isinstance(industry, IndustryData)
+
+        company_record = state.facts.get("company_record")
+        departments = self._departments(company_record, industry)
+        target_size_band = self._target_size_band(state, company_record)
+        category = self._category(state, company, industry)
+        name = self._name(state, company, industry, category)
+        slug = self._slug(state, company, name)
+        launch_year = self._launch_year(state, company_record)
+        product_type = self._product_type(state, industry)
+        pricing_model = self._pricing_model(state, product_type)
+        features = self._features(state, industry, target_size_band)
+        target_departments = self._target_departments(
+            state, departments, target_size_band
+        )
+        owner_department = state.random.choice(target_departments)
+        website = Website.from_host(company.domain, f"/products/{slug}")
+
+        record = ProductRecord(
+            id=state.registry.uuid("product"),
+            company=company,
+            name=name,
+            slug=slug,
+            product_type=product_type,
+            lifecycle_stage=self._lifecycle_stage(state, launch_year),
+            launch_year=launch_year,
+            industry=company.industry,
+            category=category,
+            owner_department=owner_department,
+            target_departments=target_departments,
+            target_size_band=target_size_band,
+            description=self._description(
+                state, industry, company, name, category, target_departments
+            ),
+            website=website,
+            pricing_model=pricing_model,
+            features=features,
+            plans=self._plans(
+                state,
+                company,
+                slug,
+                pricing_model,
+                target_size_band,
+                target_departments,
+                features,
+            ),
+        )
+        return {"product_record": record, "product": record.as_product()}
+
+    def _departments(self, company_record: object, industry: IndustryData) -> list[str]:
+        if isinstance(company_record, CompanyRecord):
+            return list(company_record.departments)
+        return list(industry.departments)
+
+    def _target_size_band(
+        self, state: GenerationState, company_record: object
+    ) -> SizeBand:
+        if isinstance(company_record, CompanyRecord):
+            return company_record.size_band
+        requested = state.facts.get("size_band")
+        if isinstance(requested, str) and requested in SIZE_BAND_EMPLOYEE_RANGES:
+            return requested  # type: ignore[return-value]
+        return state.random.choice(tuple(SIZE_BAND_EMPLOYEE_RANGES))
+
+    def _categories(self, industry: IndustryData) -> tuple[str, ...]:
+        return industry.product_categories or ("Operations Platform",)
+
+    def _category(
+        self, state: GenerationState, company: Company, industry: IndustryData
+    ) -> str:
+        categories = self._categories(industry)
+        index = state.registry.next_index(f"product-category:{company.id}")
+        return categories[index % len(categories)]
+
+    def _name(
+        self,
+        state: GenerationState,
+        company: Company,
+        industry: IndustryData,
+        category: str,
+    ) -> str:
+        templates = industry.product_name_templates
+        if not templates:
+            templates = (
+                "{company} {modifier} {noun}",
+                "{company} {category} {noun}",
+            )
+        modifiers = industry.product_modifiers or (
+            "Core",
+            "Signal",
+            "Nexus",
+            "Atlas",
+            "Beacon",
+            "Vertex",
+            "Summit",
+            "Relay",
+        )
+        nouns = industry.product_nouns or (
+            "Cloud",
+            "Hub",
+            "Engine",
+            "Console",
+            "Platform",
+            "Desk",
+            "Grid",
+            "Works",
+        )
+        company_root = company.name.split()[0]
+        start = state.registry.next_index(f"product-name-sequence:{company.id}")
+        category_name = category.replace("/", " ")
+
+        def candidate(attempt: int) -> str:
+            index = start + attempt
+            template = templates[index % len(templates)]
+            modifier = modifiers[(index // len(templates)) % len(modifiers)]
+            noun = nouns[(index // (len(templates) * len(modifiers))) % len(nouns)]
+            cycle = index // (len(templates) * len(modifiers) * len(nouns))
+            name = template.format(
+                company=company_root,
+                category=category_name,
+                modifier=modifier,
+                noun=noun,
+            )
+            return name if cycle == 0 else f"{name} {cycle + 1}"
+
+        return str(state.registry.unique(f"product-name:{company.id}", candidate))
+
+    def _slug(self, state: GenerationState, company: Company, name: str) -> str:
+        base = ascii_slug(name)
+
+        def candidate(attempt: int) -> str:
+            return base if attempt == 0 else f"{base}-{attempt + 1}"
+
+        return str(state.registry.unique(f"product-slug:{company.id}", candidate))
+
+    def _launch_year(self, state: GenerationState, company_record: object) -> int:
+        current_year = date.today().year
+        if isinstance(company_record, CompanyRecord):
+            low = min(company_record.founded_year, current_year)
+        else:
+            low = current_year - state.random.randint(0, 6)
+        return state.random.randint(max(1800, low), current_year)
+
+    def _product_type(self, state: GenerationState, industry: IndustryData) -> str:
+        choices_by_industry = {
+            "Data Infrastructure": ("platform", "data_product", "software"),
+            "Healthcare Technology": ("software", "managed_service", "platform"),
+            "Financial Services": ("financial_product", "platform", "software"),
+            "Climate Operations": ("program", "managed_service", "platform"),
+        }
+        choices = choices_by_industry.get(
+            industry.industry, ("software", "platform", "managed_service")
+        )
+        return state.random.choice(choices)
+
+    def _pricing_model(self, state: GenerationState, product_type: str) -> str:
+        choices_by_type = {
+            "software": ("subscription", "usage_based", "contract"),
+            "platform": ("subscription", "usage_based", "contract"),
+            "data_product": ("subscription", "usage_based", "contract"),
+            "managed_service": ("contract", "project", "subscription"),
+            "program": ("project", "contract", "subscription"),
+            "financial_product": ("transaction", "contract", "subscription"),
+        }
+        return state.random.choice(choices_by_type[product_type])
+
+    def _features(
+        self, state: GenerationState, industry: IndustryData, size_band: SizeBand
+    ) -> list[str]:
+        features = industry.product_features or (
+            "workflow automation",
+            "role-based dashboards",
+            "managed reporting",
+            "secure collaboration",
+            "administrative controls",
+        )
+        count = 4 if size_band in {"seed", "startup"} else 5
+        return self._rotating_subset(state, list(features), min(count, len(features)))
+
+    def _target_departments(
+        self, state: GenerationState, departments: list[str], size_band: SizeBand
+    ) -> list[str]:
+        count = 2 if size_band in {"seed", "startup"} else 3
+        return self._rotating_subset(state, departments, min(count, len(departments)))
+
+    def _rotating_subset(
+        self, state: GenerationState, values: list[str], count: int
+    ) -> list[str]:
+        start = state.random.randrange(len(values))
+        return [values[(start + index) % len(values)] for index in range(count)]
+
+    def _lifecycle_stage(self, state: GenerationState, launch_year: int) -> str:
+        age = max(0, date.today().year - launch_year)
+        if age <= 1:
+            return state.random.choice(("beta", "launched"))
+        if age <= 3:
+            return state.random.choice(("launched", "growth"))
+        if age <= 8:
+            return state.random.choice(("growth", "mature"))
+        return "mature"
+
+    def _description(
+        self,
+        state: GenerationState,
+        industry: IndustryData,
+        company: Company,
+        product_name: str,
+        category: str,
+        target_departments: list[str],
+    ) -> str:
+        templates = industry.product_description_templates or (
+            "{product} helps {target_departments} teams run dependable "
+            "{category} workflows.",
+        )
+        return state.random.choice(templates).format(
+            product=product_name,
+            company=company.name,
+            industry=company.industry,
+            category=category,
+            target_departments=", ".join(target_departments),
+        )
+
+    def _plans(
+        self,
+        state: GenerationState,
+        company: Company,
+        slug: str,
+        pricing_model: str,
+        size_band: SizeBand,
+        target_departments: list[str],
+        features: list[str],
+    ) -> list[ProductPlan]:
+        plan_names = ("Starter", "Growth", "Enterprise")
+        plan_count = 2 if size_band in {"seed", "startup"} else 3
+        billing_interval = self._billing_interval(state, pricing_model)
+        return [
+            ProductPlan(
+                sku=self._sku(state, company, slug, plan_name),
+                name=plan_name,
+                description=(
+                    f"{plan_name} plan for "
+                    f"{', '.join(target_departments).lower()} teams."
+                ),
+                billing_interval=billing_interval,
+                price_range=self._price_range(size_band, billing_interval, index),
+                included_features=self._included_features(features, index),
+            )
+            for index, plan_name in enumerate(plan_names[:plan_count])
+        ]
+
+    def _billing_interval(self, state: GenerationState, pricing_model: str) -> str:
+        intervals_by_model = {
+            "subscription": ("monthly", "annual"),
+            "usage_based": ("usage", "monthly"),
+            "contract": ("annual",),
+            "transaction": ("usage",),
+            "project": ("one_time",),
+        }
+        return state.random.choice(intervals_by_model[pricing_model])
+
+    def _price_range(
+        self, size_band: SizeBand, billing_interval: str, plan_index: int
+    ) -> PriceRange:
+        base_by_size = {
+            "seed": (49, 199),
+            "startup": (199, 799),
+            "SMB": (799, 2499),
+            "mid-market": (2500, 9000),
+            "enterprise": (10000, 50000),
+        }
+        multipliers = ((1, 2), (3, 5), (8, 14))
+        low, high = base_by_size[size_band]
+        low_multiplier, high_multiplier = multipliers[plan_index]
+        interval_multiplier = {
+            "monthly": 1,
+            "usage": 1,
+            "annual": 10,
+            "one_time": 20,
+        }[billing_interval]
+        minimum = self._round_price(low * low_multiplier * interval_multiplier)
+        maximum = self._round_price(
+            high * high_multiplier * interval_multiplier, up=True
+        )
+        return PriceRange(amount_min_usd=minimum, amount_max_usd=maximum)
+
+    def _round_price(self, value: int, up: bool = False) -> int:
+        bucket = 50 if value < 1000 else 100
+        if up:
+            return ((value + bucket - 1) // bucket) * bucket
+        return max(bucket, (value // bucket) * bucket)
+
+    def _included_features(self, features: list[str], plan_index: int) -> list[str]:
+        if plan_index == 0:
+            return features[: min(3, len(features))]
+        if plan_index == 1:
+            return features[: min(5, len(features))]
+        return list(features)
+
+    def _sku(
+        self, state: GenerationState, company: Company, slug: str, plan_name: str
+    ) -> str:
+        sku_base = f"{slug.upper().replace('-', '_')}-{plan_name.upper()}"
+
+        def candidate(attempt: int) -> str:
+            return sku_base if attempt == 0 else f"{sku_base}-{attempt + 1}"
+
+        return str(state.registry.unique(f"product-sku:{company.id}", candidate))
+
+
 class PersonRecordProvider:
     provides = ("person_record",)
     requires = (
@@ -760,5 +1128,6 @@ def default_providers() -> tuple[object, ...]:
         WebsiteProvider(),
         AvatarProvider(),
         BioProvider(),
+        ProductRecordProvider(),
         PersonRecordProvider(),
     )

@@ -27,6 +27,11 @@ def test_locale_name_data_comes_from_packaged_json_files():
         ("en_IN", "latin"),
         ("hi_IN", "devanagari"),
         ("de_DE", "latin"),
+        ("es_MX", "latin"),
+        ("ja_JP", "kanji"),
+        ("fr_FR", "latin"),
+        ("pt_BR", "latin"),
+        ("zh_CN", "han"),
     )
 
     verisim = Verisim(locale="en_US", seed=99)
@@ -43,7 +48,7 @@ def test_locale_name_data_comes_from_packaged_json_files():
         assert len(set(payload["given"])) == len(payload["given"])
         assert len(payload["family"]) == 1_000
         assert len(set(payload["family"])) == len(payload["family"])
-        if locale == "hi_IN":
+        if locale in {"hi_IN", "ja_JP", "zh_CN"}:
             assert any(not name.isascii() for name in payload["given"])
 
 
@@ -56,6 +61,11 @@ def test_address_data_comes_from_packaged_country_json_files():
         "AU": 1_000,
         "IN": 1_000,
         "DE": 1_000,
+        "MX": 1_000,
+        "JP": 1_000,
+        "FR": 1_000,
+        "BR": 1_000,
+        "CN": 1_000,
     }
     minimum_postal_code_counts = {
         "US": 1_000,
@@ -64,6 +74,11 @@ def test_address_data_comes_from_packaged_country_json_files():
         "AU": 1_000,
         "IN": 1_000,
         "DE": 1_000,
+        "MX": 1_000,
+        "JP": 1_000,
+        "FR": 1_000,
+        "BR": 1_000,
+        "CN": 1_000,
     }
 
     verisim = Verisim(locale="en_US", seed=99)
@@ -258,18 +273,23 @@ def test_en_indian_locale_can_output_latin_names_and_country_correct_phone():
 
 
 @pytest.mark.parametrize(
-    ("locale", "country_code", "calling_code"),
+    ("locale", "script", "country_code", "calling_code"),
     (
-        ("en_GB", "GB", "+44"),
-        ("en_CA", "CA", "+1"),
-        ("en_AU", "AU", "+61"),
-        ("de_DE", "DE", "+49"),
+        ("en_GB", "latin", "GB", "+44"),
+        ("en_CA", "latin", "CA", "+1"),
+        ("en_AU", "latin", "AU", "+61"),
+        ("de_DE", "latin", "DE", "+49"),
+        ("es_MX", "latin", "MX", "+52"),
+        ("ja_JP", "kanji", "JP", "+81"),
+        ("fr_FR", "latin", "FR", "+33"),
+        ("pt_BR", "latin", "BR", "+55"),
+        ("zh_CN", "han", "CN", "+86"),
     ),
 )
 def test_new_lite_locales_generate_country_correct_records(
-    locale: str, country_code: str, calling_code: str
+    locale: str, script: str, country_code: str, calling_code: str
 ):
-    verisim = Verisim(locale=locale, output_language=locale[:2], seed=13)
+    verisim = Verisim(locale=locale, output_language=locale[:2], script=script, seed=13)
 
     record = verisim.generate(PersonRecord)
 
@@ -277,8 +297,10 @@ def test_new_lite_locales_generate_country_correct_records(
     assert record.contact.phone.country_code == country_code
     assert record.contact.phone.e164.startswith(calling_code)
     assert (
-        record.person.given_name in verisim.data.names_for_locale(locale, "latin").given
+        record.person.given_name in verisim.data.names_for_locale(locale, script).given
     )
+    if script in {"kanji", "han"}:
+        assert not record.person.name.isascii()
     assert record.address.postal_code in verisim.data.postal_codes_for_city(
         country_code=country_code,
         region_code=record.address.region_code,
@@ -416,9 +438,12 @@ def test_pack_metadata_records_scope_version_and_provenance():
 
     assert metadata.name == "lite"
     assert metadata.version == "0.1.0"
-    assert metadata.scope == "US, UK, Canada, Australia, India, and Germany sample data"
+    assert metadata.scope == (
+        "US, UK, Canada, Australia, India, Germany, Mexico, Japan, France, "
+        "Brazil, and China sample data"
+    )
     assert metadata.provenance
-    assert metadata.signed is True
+    assert metadata.signed is False
 
 
 def test_json_output_comes_from_pydantic_models():

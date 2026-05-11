@@ -72,6 +72,17 @@ def test_cli_dataset_generates_people_and_companies():
     assert len(payload["companies"]) == 2
 
 
+def test_cli_generates_product_record_json():
+    result = runner.invoke(app, ["product-record", "--seed", "123"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert payload["name"]
+    assert payload["company"]["domain"].endswith(".example.invalid")
+    assert payload["website"]["url"].endswith(f"/products/{payload['slug']}")
+    assert payload["plans"]
+
+
 def test_cli_rejects_unknown_target_with_supported_choices():
     result = runner.invoke(app, ["unknown"])
 

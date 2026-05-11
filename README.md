@@ -223,7 +223,8 @@ uv run verisim person-record --repeat 10 --output people.jsonl
 ```
 
 Supported record commands are `person-record`, `person`, `company-record`,
-`company`, `address`, `contact`, `job`, `socials`, and `website`.
+`company`, `product-record`, `product`, `address`, `contact`, `job`, `socials`,
+and `website`.
 
 Example shape:
 
@@ -301,6 +302,13 @@ Generated contact details are non-routable by default. Emails and websites use
 synthetic `.example.invalid` domains, while still preserving realistic local
 parts, hosts, formats, and relationships. When a person is generated with
 company context, their email uses the company's domain and email pattern.
+
+**Deterministic seeded output**
+
+Passing `seed=` makes generation reproducible, including UUID primary keys.
+Reusing the same locale, seed, and generation order will reproduce the same
+IDs. Treat seeded UUIDs as synthetic fixture identifiers only; do not use them
+as secrets, authorization tokens, or production identifiers.
 
 ## Generate Related Datasets
 
@@ -385,21 +393,23 @@ print(record.contact.phone.e164)
 This supports Indian names in Latin script, such as `Rakesh`, `Om`, or
 `Prakash`, while keeping address and phone fields country-aware.
 
-The lite pack includes US, UK, Canadian, Australian, Indian, and German
-coverage. The packaged locale codes are `en_US`, `en_GB`, `en_CA`, `en_AU`,
-`en_IN`, `hi_IN`, and `de_DE`; each includes 1,000 given names and 1,000 family
-names.
+The lite pack includes US, UK, Canadian, Australian, Indian, German, Mexican,
+Japanese, French, Brazilian, and Chinese coverage. The packaged locale codes
+are `en_US`, `en_GB`, `en_CA`, `en_AU`, `en_IN`, `hi_IN`, `de_DE`, `es_MX`,
+`ja_JP`, `fr_FR`, `pt_BR`, and `zh_CN`; each includes 1,000 given names and
+1,000 family names.
 
-Country address data for `US`, `GB`, `CA`, `AU`, `IN`, and `DE` is generated
-from open [GeoNames postal-code archives](http://download.geonames.org/export/zip/)
-with Verisim-authored synthetic street
-names and suffixes. The packaged data currently contains 53 US regions, 6 UK
-regions, 13 Canadian regions, 8 Australian regions, 35 Indian regions, and 33
-German regions, covering more than 2.8 million postal-code-to-city
-relationships. Canada and the UK use the GeoNames full-code archives; the
-standard GeoNames country ZIPs are used for the other supported countries. The
-source data is useful for coherent synthetic generation, not postal authority
-validation.
+Country address data for `US`, `GB`, `CA`, `AU`, `IN`, `DE`, `MX`, `JP`, `FR`,
+`BR`, and `CN` is generated from open
+[GeoNames postal-code archives](https://download.geonames.org/export/zip/) with
+Verisim-authored synthetic street names and suffixes. The packaged data
+currently contains 53 US regions, 6 UK regions, 13 Canadian regions, 8
+Australian regions, 35 Indian regions, 33 German regions, 32 Mexican regions,
+47 Japanese regions, 14 French regions, 27 Brazilian regions, and 35 Chinese
+regions, covering more than 3.3 million postal-code-to-city relationships.
+Canada and the UK use the GeoNames full-code archives; the standard GeoNames
+country ZIPs are used for the other supported countries. The source data is
+useful for coherent synthetic generation, not postal authority validation.
 
 To refresh the packaged country JSON files from GeoNames:
 
@@ -407,11 +417,14 @@ To refresh the packaged country JSON files from GeoNames:
 uv run python scripts/build_country_datasets.py --download
 ```
 
+The refresh script downloads archives over HTTPS and verifies each source
+archive against the pinned SHA-256 manifest before rebuilding packaged JSON.
+
 ## Current Features
 
-- Pydantic v2 domain models for `PersonRecord`, `CompanyRecord`, `Person`,
-  `Address`, `Contact`, `PhoneNumber`, `Job`, `Company`, `Socials`, `Website`,
-  and datasets.
+- Pydantic v2 domain models for `PersonRecord`, `CompanyRecord`,
+  `ProductRecord`, `Person`, `Address`, `Contact`, `PhoneNumber`, `Job`,
+  `Company`, `Product`, `Socials`, `Website`, and datasets.
 - Context graph provider engine.
 - Per-run uniqueness registry for IDs, usernames, emails, phones, companies,
   and social handles.
@@ -450,17 +463,25 @@ uv run python -m examples.basic_person
 uv run python -m examples.company_record
 uv run python -m examples.context_repair
 uv run python -m examples.dataset_generation
+uv run python -m examples.product_record
 ```
 
 Import them from Python:
 
 ```python
-from examples import basic_person, company_record, context_repair, dataset_generation
+from examples import (
+    basic_person,
+    company_record,
+    context_repair,
+    dataset_generation,
+    product_record,
+)
 
 record = basic_person.generate_example(seed=123)
 company = company_record.generate_example(seed=123, size_band="startup")
 diagnostics, repaired = context_repair.generate_example(seed=123)
 dataset = dataset_generation.generate_example(seed=123, people=5, companies=2)
+product = product_record.generate_example(seed=123)
 ```
 
 ## Development
