@@ -387,19 +387,33 @@ class Verisim:
         self, facts: dict[str, object], conflicts: list[DiagnosticIssue]
     ) -> dict[str, object]:
         repaired = dict(facts)
-        for conflict in conflicts:
-            if conflict.code == "contact.phone.country":
-                repaired.pop("contact", None)
-            elif conflict.code == "contact.email.company_domain":
-                repaired.pop("contact", None)
-            elif conflict.code == "address.postal_code":
-                repaired.pop("address", None)
-            elif conflict.code == "job.company.industry":
-                repaired.pop("job", None)
-            elif conflict.code.startswith("company."):
-                repaired.pop("company_record", None)
-                repaired.pop("company", None)
-                repaired.pop("industry", None)
-                repaired.pop("size_band", None)
+        codes = {c.code for c in conflicts}
+
+        phone_conflict = "contact.phone.country" in codes
+        email_conflict = "contact.email.company_domain" in codes
+        if phone_conflict or email_conflict:
+            contact = repaired.pop("contact", None)
+            if isinstance(contact, Contact):
+                if phone_conflict and not email_conflict:
+                    repaired["_preserved_contact_email"] = contact.email
+                elif email_conflict and not phone_conflict:
+                    repaired["_preserved_contact_phone"] = contact.phone
+
+        if "address.postal_code" in codes:
+            address = repaired.pop("address", None)
+            if isinstance(address, Address):
+                repaired["_preserved_address_city"] = address.city
+                repaired["_preserved_address_region_code"] = address.region_code
+                repaired["_preserved_address_country_code"] = address.country_code
+
+        if "job.company.industry" in codes:
+            repaired.pop("job", None)
+
+        if any(code.startswith("company.") for code in codes):
+            repaired.pop("company_record", None)
+            repaired.pop("company", None)
+            repaired.pop("industry", None)
+            repaired.pop("size_band", None)
+
         repaired.pop("person_record", None)
         return repaired

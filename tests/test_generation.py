@@ -446,6 +446,82 @@ def test_pack_metadata_records_scope_version_and_provenance():
     assert metadata.signed is False
 
 
+def test_repair_mode_preserves_email_when_only_phone_country_conflicts():
+    verisim = Verisim(locale="en_US", seed=1)
+    address = Address(
+        line1="19 Birch Street",
+        city="Austin",
+        region="Texas",
+        region_code="TX",
+        postal_code="78701",
+        country="United States",
+        country_code="US",
+    )
+    contact = Contact.synthetic(
+        email="rakesh.patel@example.invalid", phone="+91 98765 43210"
+    )
+
+    repaired = verisim.generate(
+        PersonRecord, context={"address": address, "contact": contact}, mode="repair"
+    )
+
+    assert repaired.contact.email == "rakesh.patel@example.invalid"
+    assert repaired.contact.phone.country_code == "US"
+    assert repaired.contact.phone.e164.startswith("+1")
+
+
+def test_repair_mode_preserves_city_and_region_when_only_postal_code_is_invalid():
+    verisim = Verisim(locale="en_US", seed=2)
+    valid_codes = verisim.data.postal_codes_for_city("US", "TX", "Austin")
+    address = Address(
+        line1="42 Oak Avenue",
+        city="Austin",
+        region="Texas",
+        region_code="TX",
+        postal_code="99999",
+        country="United States",
+        country_code="US",
+    )
+
+    repaired = verisim.generate(
+        PersonRecord, context={"address": address}, mode="repair"
+    )
+
+    assert repaired.address.city == "Austin"
+    assert repaired.address.region_code == "TX"
+    assert repaired.address.country_code == "US"
+    assert repaired.address.postal_code in valid_codes
+
+
+def test_repair_mode_drops_both_email_and_phone_when_both_conflict():
+    verisim = Verisim(locale="en_US", seed=3)
+    from verisim import CompanyRecord
+
+    company = verisim.generate(CompanyRecord)
+    address = Address(
+        line1="19 Birch Street",
+        city="Austin",
+        region="Texas",
+        region_code="TX",
+        postal_code="78701",
+        country="United States",
+        country_code="US",
+    )
+    contact = Contact.synthetic(
+        email="wrong@other-company.example.invalid",
+        phone="+91 98765 43210",
+    )
+
+    repaired = verisim.generate(
+        PersonRecord,
+        context={"address": address, "contact": contact, "company": company},
+        mode="repair",
+    )
+
+    assert repaired.contact.phone.country_code == "US"
+    assert repaired.contact.email.endswith(f"@{company.domain}")
+
+
 def test_json_output_comes_from_pydantic_models():
     verisim = Verisim(locale="en_US", seed=7)
 
