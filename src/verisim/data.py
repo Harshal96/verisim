@@ -823,6 +823,37 @@ class LiteDataPack:
                         return city
         return None
 
+    def make_address_for_city(
+        self,
+        random: Random,
+        country_code: str,
+        region_code: str,
+        city_name: str,
+    ) -> "Address | None":
+        country = self.countries.get(country_code)
+        if not country:
+            return None
+        for region in country.regions:
+            if region.code == region_code:
+                for city in region.cities:
+                    if city.name == city_name:
+                        line1 = (
+                            f"{random.randint(10, 9999)} "
+                            f"{random.choice(self.street_names_for_country(country.code))} "
+                            f"{random.choice(country.street_suffixes)}"
+                        )
+                        return Address(
+                            line1=line1,
+                            city=city.name,
+                            region=region.name,
+                            region_code=region.code,
+                            postal_code=random.choice(city.postal_codes),
+                            country=country.name,
+                            country_code=country.code,
+                            geo=GeoPoint(latitude=city.latitude, longitude=city.longitude),
+                        )
+        return None
+
     def make_address(
         self, random: Random, locale: str, country_code: str | None = None
     ) -> Address:

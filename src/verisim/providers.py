@@ -71,6 +71,15 @@ class AddressProvider:
     requires: tuple[str, ...] = ()
 
     def generate(self, state: GenerationState) -> dict[str, object]:
+        city = state.facts.pop("_preserved_address_city", None)
+        region_code = state.facts.pop("_preserved_address_region_code", None)
+        country_code = state.facts.pop("_preserved_address_country_code", None)
+        if city and region_code and country_code:
+            address = state.data.make_address_for_city(
+                state.random, str(country_code), str(region_code), str(city)
+            )
+            if address is not None:
+                return {"address": address}
         return {"address": state.data.make_address(state.random, state.locale)}
 
 
@@ -479,8 +488,10 @@ class ContactProvider:
         address = state.facts["address"]
         assert isinstance(person, Person)
         country_code = getattr(address, "country_code")
-        email = self._email(state, person)
-        phone = self._phone(state, country_code, address)
+        preserved_email = state.facts.pop("_preserved_contact_email", None)
+        preserved_phone = state.facts.pop("_preserved_contact_phone", None)
+        email = str(preserved_email) if preserved_email is not None else self._email(state, person)
+        phone = preserved_phone if isinstance(preserved_phone, PhoneNumber) else self._phone(state, country_code, address)
         return {"contact": Contact(email=email, phone=phone)}
 
     def _email(self, state: GenerationState, person: Person) -> str:
