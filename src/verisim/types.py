@@ -61,20 +61,54 @@ PricingModel = Literal[
     "subscription", "usage_based", "contract", "transaction", "project"
 ]
 BillingInterval = Literal["monthly", "annual", "usage", "one_time"]
+CurrencyCode = Literal[
+    "USD", "EUR", "GBP", "CAD", "AUD", "INR", "JPY", "MXN", "BRL", "CNY"
+]
+OrderStatus = Literal["placed", "paid", "fulfilled", "delivered", "cancelled"]
+TransactionStatus = Literal["authorized", "settled", "declined", "flagged"]
+TransactionCategory = Literal[
+    "software",
+    "travel",
+    "office",
+    "meals",
+    "healthcare",
+    "financial_services",
+    "utilities",
+]
+EventType = Literal["meeting", "appointment", "booking", "webinar", "onsite_visit"]
+EventStatus = Literal["scheduled", "confirmed", "completed", "cancelled"]
+SupportTicketPriority = Literal["low", "normal", "high", "urgent"]
+SupportTicketStatus = Literal["open", "pending", "resolved", "closed"]
+ReviewSentiment = Literal["critical", "neutral", "positive"]
+MedicalVisitType = Literal[
+    "primary_care", "urgent_care", "telehealth", "specialist", "follow_up"
+]
+PatientSex = Literal["female", "male", "nonbinary", "unknown"]
 
 __all__ = [
     "BillingInterval",
     "CountryCode",
+    "CurrencyCode",
     "EmailAddress",
     "EmailPattern",
+    "EventStatus",
+    "EventType",
     "FundingStage",
     "LegalEntityType",
     "LocaleCode",
+    "MedicalVisitType",
+    "OrderStatus",
+    "PatientSex",
     "PostalCode",
     "PricingModel",
     "ProductLifecycleStage",
     "ProductType",
+    "ReviewSentiment",
     "SizeBand",
+    "SupportTicketPriority",
+    "SupportTicketStatus",
+    "TransactionCategory",
+    "TransactionStatus",
     "Url",
     "Username",
 ]

@@ -212,6 +212,24 @@ def test_cli_generates_product_record_json():
     assert payload["plans"]
 
 
+def test_cli_generates_new_domain_record_json():
+    targets = {
+        "order-record": "line_items",
+        "transaction-record": "amount_minor",
+        "event-record": "participants",
+        "support-ticket-record": "assigned_agent",
+        "review-record": "rating",
+        "medical-record": "diagnoses",
+    }
+
+    for target, expected_key in targets.items():
+        result = runner.invoke(app, [target, "--seed", "123"])
+
+        assert result.exit_code == 0
+        payload = json.loads(result.stdout)
+        assert payload[expected_key]
+
+
 def test_cli_rejects_unknown_target_with_supported_choices():
     result = runner.invoke(app, ["unknown"])
 

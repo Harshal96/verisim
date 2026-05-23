@@ -3,14 +3,26 @@ from examples import (
     company_record,
     context_repair,
     dataset_generation,
+    event_record,
+    medical_record,
+    order_record,
     product_record,
+    review_record,
+    support_ticket_record,
+    transaction_record,
 )
 from verisim import (
     CompanyRecord,
     Dataset,
+    EventRecord,
     GenerationDiagnostics,
+    MedicalRecord,
+    OrderRecord,
     PersonRecord,
     ProductRecord,
+    ReviewRecord,
+    SupportTicketRecord,
+    TransactionRecord,
 )
 
 
@@ -58,3 +70,19 @@ def test_product_record_example_returns_a_product_record():
     assert product.company.domain.endswith(".example.invalid")
     assert product.website.host == product.company.domain
     assert product.plans
+
+
+def test_new_domain_record_examples_return_expected_models():
+    examples = (
+        (order_record.generate_example, OrderRecord),
+        (transaction_record.generate_example, TransactionRecord),
+        (event_record.generate_example, EventRecord),
+        (support_ticket_record.generate_example, SupportTicketRecord),
+        (review_record.generate_example, ReviewRecord),
+        (medical_record.generate_example, MedicalRecord),
+    )
+
+    for generate_example, expected_model in examples:
+        record = generate_example(seed=123)
+
+        assert isinstance(record, expected_model)
