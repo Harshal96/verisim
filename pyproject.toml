@@ -38,6 +38,10 @@ Issues = "https://github.com/Harshal96/verisim/issues"
 lite = []
 full = []
 ai = []
+export = [
+  "fastavro>=1.9",
+  "pyarrow>=16",
+]
 dev = [
   "autoflake>=2.3",
   "black>=25.0",

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import sqlite3
+from csv import DictReader
 
 from typer.testing import CliRunner
 
@@ -70,6 +72,133 @@ def test_cli_dataset_generates_people_and_companies():
     payload = json.loads(result.stdout)
     assert len(payload["people"]) == 4
     assert len(payload["companies"]) == 2
+
+
+def test_cli_dataset_exports_csv_directory_with_wide_layout(tmp_path):
+    output = tmp_path / "tables"
+
+    result = runner.invoke(
+        app,
+        [
+            "dataset",
+            "--people",
+            "3",
+            "--companies",
+            "2",
+            "--products",
+            "1",
+            "--seed",
+            "123",
+            "--format",
+            "csv",
+            "--layout",
+            "both",
+            "--output",
+            str(output),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert result.stdout == ""
+    assert (output / "companies.csv").exists()
+    assert (output / "people.csv").exists()
+    assert (output / "people_wide.csv").exists()
+    assert (output / "products_wide.csv").exists()
+
+
+def test_cli_dataset_exports_sqlite_database(tmp_path):
+    output = tmp_path / "dataset.sqlite"
+
+    result = runner.invoke(
+        app,
+        [
+            "dataset",
+            "--people",
+            "3",
+            "--companies",
+            "2",
+            "--products",
+            "1",
+            "--seed",
+            "123",
+            "--format",
+            "sqlite",
+            "--output",
+            str(output),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert result.stdout == ""
+    with sqlite3.connect(output) as connection:
+        people_count = connection.execute("SELECT COUNT(*) FROM people").fetchone()[0]
+        company_count = connection.execute("SELECT COUNT(*) FROM companies").fetchone()[
+            0
+        ]
+        metadata = dict(connection.execute("SELECT key, value FROM export_metadata"))
+    assert people_count == 3
+    assert company_count == 2
+    assert metadata["locale"] == "en_US"
+    assert metadata["seed"] == "123"
+
+
+def test_cli_dataset_exports_sql_dump(tmp_path):
+    output = tmp_path / "dataset.sql"
+
+    result = runner.invoke(
+        app,
+        [
+            "dataset",
+            "--people",
+            "1",
+            "--companies",
+            "1",
+            "--seed",
+            "123",
+            "--format",
+            "sql",
+            "--sql-mode",
+            "insert",
+            "--output",
+            str(output),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert "CREATE TABLE companies" in output.read_text()
+    assert "INSERT INTO people" in output.read_text()
+
+
+def test_cli_dataset_requires_output_for_file_based_formats():
+    result = runner.invoke(app, ["dataset", "--format", "csv"])
+
+    assert result.exit_code != 0
+    assert "--output is required when --format is not json" in result.output
+
+
+def test_cli_record_command_exports_repeated_records_as_csv(tmp_path):
+    output = tmp_path / "people.csv"
+
+    result = runner.invoke(
+        app,
+        [
+            "person-record",
+            "--repeat",
+            "3",
+            "--seed",
+            "123",
+            "--format",
+            "csv",
+            "--output",
+            str(output),
+        ],
+    )
+
+    assert result.exit_code == 0
+    with output.open(newline="", encoding="utf-8") as stream:
+        rows = list(DictReader(stream))
+    assert len(rows) == 3
+    assert rows[0]["person_name"]
 
 
 def test_cli_generates_product_record_json():

@@ -1,11 +1,13 @@
 from verisim.api import Verisim
 from verisim.errors import ContextConflictError, UnsupportedModelError
+from verisim.exporters import export_dataset, export_records
 from verisim.models import (
     Address,
     Company,
     CompanyRecord,
     Contact,
     Dataset,
+    DatasetEvent,
     DatasetSpec,
     DiagnosticIssue,
     GenerationDiagnostics,
@@ -45,6 +47,7 @@ __all__ = [
     "Contact",
     "ContextConflictError",
     "Dataset",
+    "DatasetEvent",
     "DatasetSpec",
     "DiagnosticIssue",
     "EmailPattern",
@@ -73,4 +76,6 @@ __all__ = [
     "UnsupportedModelError",
     "Verisim",
     "Website",
+    "export_dataset",
+    "export_records",
 ]

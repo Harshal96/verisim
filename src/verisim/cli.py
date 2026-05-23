@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 import click
 import typer
 from pydantic import BaseModel
 
 from verisim.api import Verisim
+from verisim.exporters import export_dataset, export_records
 from verisim.models import (
     Address,
     CompanyRecord,
@@ -20,6 +21,12 @@ from verisim.models import (
     Socials,
     Website,
 )
+
+CliExportFormat = Literal[
+    "json", "jsonl", "csv", "sql", "sqlite", "parquet", "feather", "arrow", "avro"
+]
+CliLayout = Literal["relational", "wide", "both"]
+CliSqlMode = Literal["copy", "insert"]
 
 
 class VerisimTyperGroup(typer.core.TyperGroup):
@@ -109,6 +116,8 @@ def _generate_records(
     output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
     indent: Annotated[int | None, typer.Option("--indent", min=0)] = None,
     compact: Annotated[bool, typer.Option("--compact")] = False,
+    export_format: Annotated[CliExportFormat, typer.Option("--format")] = "json",
+    batch_size: Annotated[int, typer.Option("--batch-size", min=1)] = 10_000,
 ) -> None:
     json_indent = None if compact else indent
     verisim = Verisim(
@@ -117,6 +126,23 @@ def _generate_records(
         script=script,
         seed=seed,
     )
+    if export_format != "json":
+        if output is None:
+            raise typer.BadParameter("--output is required when --format is not json")
+        export_records(
+            verisim.iter_records(model, repeat),
+            model,
+            export_format,
+            output,
+            batch_size=batch_size,
+            metadata={
+                "locale": locale,
+                "output_language": output_language,
+                "script": script,
+                "seed": seed,
+            },
+        )
+        return
     payload = separator.join(
         _json(record, json_indent) for record in verisim.records(model, repeat)
     )
@@ -134,6 +160,8 @@ def _record_command(model: type[BaseModel]):
         output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
         indent: Annotated[int | None, typer.Option("--indent", min=0)] = None,
         compact: Annotated[bool, typer.Option("--compact")] = False,
+        export_format: Annotated[CliExportFormat, typer.Option("--format")] = "json",
+        batch_size: Annotated[int, typer.Option("--batch-size", min=1)] = 10_000,
     ) -> None:
         _generate_records(
             model=model,
@@ -146,6 +174,8 @@ def _record_command(model: type[BaseModel]):
             output=output,
             indent=indent,
             compact=compact,
+            export_format=export_format,
+            batch_size=batch_size,
         )
 
     return command
@@ -169,6 +199,10 @@ def dataset(
     output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
     indent: Annotated[int | None, typer.Option("--indent", min=0)] = None,
     compact: Annotated[bool, typer.Option("--compact")] = False,
+    export_format: Annotated[CliExportFormat, typer.Option("--format")] = "json",
+    layout: Annotated[CliLayout, typer.Option("--layout")] = "relational",
+    sql_mode: Annotated[CliSqlMode, typer.Option("--sql-mode")] = "copy",
+    batch_size: Annotated[int, typer.Option("--batch-size", min=1)] = 10_000,
 ) -> None:
     json_indent = None if compact else indent
     verisim = Verisim(
@@ -177,13 +211,27 @@ def dataset(
         script=script,
         seed=seed,
     )
-    payload = _json(
-        verisim.dataset(
-            DatasetSpec(people=people, companies=companies, products=products)
-        ),
-        json_indent,
+    spec = DatasetSpec(people=people, companies=companies, products=products)
+    if export_format == "json":
+        payload = _json(verisim.dataset(spec), json_indent)
+        _write(payload, output)
+        return
+    if output is None:
+        raise typer.BadParameter("--output is required when --format is not json")
+    export_dataset(
+        verisim.iter_dataset(spec),
+        export_format,
+        output,
+        layout=layout,
+        sql_mode=sql_mode,
+        batch_size=batch_size,
+        metadata={
+            "locale": locale,
+            "output_language": output_language,
+            "script": script,
+            "seed": seed,
+        },
     )
-    _write(payload, output)
 
 
 def main() -> None:

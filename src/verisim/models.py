@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from typing import Literal
 from uuid import UUID
 
@@ -362,6 +363,12 @@ class Dataset(VerisimModel):
     people: list[PersonRecord]
     companies: list[CompanyRecord]
     products: list[ProductRecord] = Field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class DatasetEvent:
+    kind: Literal["company", "person", "product"]
+    record: CompanyRecord | PersonRecord | ProductRecord
 
 
 class DiagnosticIssue(VerisimModel):

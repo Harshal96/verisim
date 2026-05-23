@@ -14,6 +14,7 @@ from verisim.models import (
     CompanyRecord,
     Contact,
     Dataset,
+    DatasetEvent,
     DatasetSpec,
     DiagnosticIssue,
     GenerationDiagnostics,
@@ -118,7 +119,58 @@ class Verisim:
             produced += 1
             yield self.generate(model, context=context)  # type: ignore[misc]
 
+    def iter_dataset(self, spec: DatasetSpec) -> Iterable[DatasetEvent]:
+        self._validate_dataset_spec(spec)
+        companies = self._company_records_for_spec(spec)
+        for company in companies:
+            yield DatasetEvent(kind="company", record=company)
+
+        if spec.people_per_company is not None:
+            for company in companies:
+                company_people = spec.people_per_company.get(company.size_band, 0)
+                for _ in range(company_people):
+                    yield DatasetEvent(
+                        kind="person",
+                        record=self.generate(
+                            PersonRecord,
+                            context={"company": company},
+                            mode="repair",
+                        ),
+                    )
+        elif companies:
+            for index in range(spec.people):
+                company = companies[index % len(companies)]
+                yield DatasetEvent(
+                    kind="person",
+                    record=self.generate(
+                        PersonRecord,
+                        context={"company": company},
+                        mode="repair",
+                    ),
+                )
+
+        if companies:
+            for index in range(spec.products):
+                company = companies[index % len(companies)]
+                yield DatasetEvent(
+                    kind="product",
+                    record=self.generate(ProductRecord, context={"company": company}),
+                )
+
     def dataset(self, spec: DatasetSpec) -> Dataset:
+        companies: list[CompanyRecord] = []
+        people: list[PersonRecord] = []
+        products: list[ProductRecord] = []
+        for event in self.iter_dataset(spec):
+            if event.kind == "company":
+                companies.append(event.record)  # type: ignore[arg-type]
+            elif event.kind == "person":
+                people.append(event.record)  # type: ignore[arg-type]
+            else:
+                products.append(event.record)  # type: ignore[arg-type]
+        return Dataset(people=people, companies=companies, products=products)
+
+    def _validate_dataset_spec(self, spec: DatasetSpec) -> None:
         if (spec.people or spec.products) and spec.companies == 0:
             raise ValueError(
                 "DatasetSpec.companies must be at least 1 when people or products "
@@ -130,37 +182,6 @@ class Verisim:
             raise ValueError(
                 "DatasetSpec.companies must cover every people_per_company size band"
             )
-        companies = self._company_records_for_spec(spec)
-        people: list[PersonRecord] = []
-        if spec.people_per_company is not None:
-            for company in companies:
-                company_people = spec.people_per_company.get(company.size_band, 0)
-                for _ in range(company_people):
-                    people.append(
-                        self.generate(
-                            PersonRecord,
-                            context={"company": company},
-                            mode="repair",
-                        )
-                    )
-        elif companies:
-            for index in range(spec.people):
-                company = companies[index % len(companies)]
-                people.append(
-                    self.generate(
-                        PersonRecord,
-                        context={"company": company},
-                        mode="repair",
-                    )
-                )
-        products: list[ProductRecord] = []
-        if companies:
-            for index in range(spec.products):
-                company = companies[index % len(companies)]
-                products.append(
-                    self.generate(ProductRecord, context={"company": company})
-                )
-        return Dataset(people=people, companies=companies, products=products)
 
     def _company_records_for_spec(self, spec: DatasetSpec) -> list[CompanyRecord]:
         requested_bands = list(spec.people_per_company or {})
