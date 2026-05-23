@@ -17,13 +17,19 @@ from verisim.models import (
     DatasetEvent,
     DatasetSpec,
     DiagnosticIssue,
+    EventRecord,
     GenerationDiagnostics,
     Job,
+    MedicalRecord,
+    OrderRecord,
     Person,
     PersonRecord,
     Product,
     ProductRecord,
+    ReviewRecord,
     Socials,
+    SupportTicketRecord,
+    TransactionRecord,
     Website,
 )
 from verisim.packs import DataPackManager
@@ -68,6 +74,12 @@ class Verisim:
                 Product: "product",
                 ProductRecord: "product_record",
                 PersonRecord: "person_record",
+                OrderRecord: "order_record",
+                TransactionRecord: "transaction_record",
+                EventRecord: "event_record",
+                SupportTicketRecord: "support_ticket_record",
+                ReviewRecord: "review_record",
+                MedicalRecord: "medical_record",
             },
         )
 
@@ -232,10 +244,23 @@ class Verisim:
                 "product",
                 "product_record",
                 "person_record",
+                "order_record",
+                "transaction_record",
+                "event_record",
+                "support_ticket_record",
+                "review_record",
+                "medical_record",
                 "industry_data",
                 "industry",
                 "size_band",
                 "founded_year",
+                "review_sentiment",
+                "order_status",
+                "transaction_status",
+                "event_type",
+                "ticket_priority",
+                "ticket_category",
+                "visit_type",
             }:
                 facts[key] = value
             else:
@@ -281,6 +306,18 @@ class Verisim:
             facts["industry"] = value.industry
             facts["size_band"] = value.target_size_band
             return
+        domain_record_facts = {
+            OrderRecord: "order_record",
+            TransactionRecord: "transaction_record",
+            EventRecord: "event_record",
+            SupportTicketRecord: "support_ticket_record",
+            ReviewRecord: "review_record",
+            MedicalRecord: "medical_record",
+        }
+        for model_type, fact in domain_record_facts.items():
+            if isinstance(value, model_type):
+                facts[fact] = value
+                return
         fact_by_type = {
             Address: "address",
             Person: "person",

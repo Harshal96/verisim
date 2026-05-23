@@ -11,16 +11,27 @@ from verisim.constants import CANADIAN_NANP_AREA_CODES
 from verisim.types import (
     BillingInterval,
     CountryCode,
+    CurrencyCode,
     EmailAddress,
     EmailPattern,
+    EventStatus,
+    EventType,
     FundingStage,
     LegalEntityType,
     LocaleCode,
+    MedicalVisitType,
+    OrderStatus,
+    PatientSex,
     PostalCode,
     PricingModel,
     ProductLifecycleStage,
     ProductType,
+    ReviewSentiment,
     SizeBand,
+    SupportTicketPriority,
+    SupportTicketStatus,
+    TransactionCategory,
+    TransactionStatus,
     Url,
     Username,
 )
@@ -105,7 +116,7 @@ class PhoneNumber(VerisimModel):
             )
         if raw.startswith("+33") or (len(digits) >= 11 and digits.startswith("33")):
             core = digits[2:] if digits.startswith("33") else digits
-            national = f"0{core[:1]} {core[1:3]} {core[3:5]} " f"{core[5:7]} {core[7:]}"
+            national = f"0{core[:1]} {core[1:3]} {core[3:5]} {core[5:7]} {core[7:]}"
             return cls(
                 e164=f"+33{core}",
                 national=national.strip(),
@@ -350,6 +361,117 @@ class PersonRecord(VerisimModel):
     avatar: Url
     bio: str
     website: Website
+
+
+class LineItemRecord(VerisimModel):
+    id: UUID
+    product: Product
+    quantity: int = Field(ge=1)
+    unit_amount_minor: int = Field(ge=0)
+    line_total_minor: int = Field(ge=0)
+    currency: CurrencyCode
+
+
+class OrderRecord(VerisimModel):
+    id: UUID
+    buyer: PersonRecord
+    company: Company
+    line_items: list[LineItemRecord] = Field(min_length=1)
+    status: OrderStatus
+    currency: CurrencyCode
+    subtotal_amount_minor: int = Field(ge=0)
+    tax_amount_minor: int = Field(ge=0)
+    discount_amount_minor: int = Field(ge=0)
+    total_amount_minor: int = Field(ge=0)
+    ordered_at: str
+    updated_at: str
+    fulfilled_at: str | None = None
+
+
+class TransactionRecord(VerisimModel):
+    id: UUID
+    account_holder: PersonRecord
+    merchant: Company
+    account_id: str
+    amount_minor: int = Field(gt=0)
+    currency: CurrencyCode
+    category: TransactionCategory
+    status: TransactionStatus
+    fraud_flag: bool
+    occurred_at: str
+    description: str
+
+
+class EventRecord(VerisimModel):
+    id: UUID
+    title: str
+    event_type: EventType
+    status: EventStatus
+    company: Company
+    organizer: PersonRecord
+    participants: list[PersonRecord] = Field(min_length=1)
+    venue: Address
+    timezone: str
+    starts_at: str
+    ends_at: str
+    description: str
+
+
+class SupportTicketRecord(VerisimModel):
+    id: UUID
+    requester: PersonRecord
+    company: Company
+    assigned_agent: PersonRecord
+    priority: SupportTicketPriority
+    category: str
+    status: SupportTicketStatus
+    subject: str
+    description: str
+    opened_at: str
+    first_response_at: str
+    resolved_at: str | None = None
+    resolution_summary: str | None = None
+
+
+class ReviewRecord(VerisimModel):
+    id: UUID
+    reviewer: PersonRecord
+    company: Company
+    product: Product
+    rating: int = Field(ge=1, le=5)
+    sentiment: ReviewSentiment
+    title: str
+    body: str
+    reviewed_at: str
+    verified_purchase: bool
+
+
+class PatientDemographics(VerisimModel):
+    name: str
+    birthdate: str
+    age_years: int = Field(ge=0)
+    sex: PatientSex
+    blood_type: str
+    country_code: CountryCode
+
+
+class DiagnosisCodeRecord(VerisimModel):
+    code: str
+    code_system: Literal["ICD-10-CM"] = "ICD-10-CM"
+    description: str
+    clinical_status: Literal["active", "resolved", "recurring"]
+
+
+class MedicalRecord(VerisimModel):
+    id: UUID
+    patient: PersonRecord
+    patient_demographics: PatientDemographics
+    provider: Company
+    visit_date: str
+    visit_type: MedicalVisitType
+    diagnoses: list[DiagnosisCodeRecord] = Field(min_length=1)
+    notes: str
+    follow_up_date: str | None = None
 
 
 class DatasetSpec(VerisimModel):

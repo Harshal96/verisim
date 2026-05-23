@@ -1115,6 +1115,16 @@ class PersonRecordProvider:
         return {"person_record": record}
 
 
+from verisim.domain_providers import (  # noqa: E402
+    EventRecordProvider,
+    MedicalRecordProvider,
+    OrderRecordProvider,
+    ReviewRecordProvider,
+    SupportTicketRecordProvider,
+    TransactionRecordProvider,
+)
+
+
 def default_providers() -> tuple[object, ...]:
     return (
         AddressProvider(),
@@ -1129,5 +1139,11 @@ def default_providers() -> tuple[object, ...]:
         AvatarProvider(),
         BioProvider(),
         ProductRecordProvider(),
+        OrderRecordProvider(),
+        TransactionRecordProvider(),
+        EventRecordProvider(),
+        SupportTicketRecordProvider(),
+        ReviewRecordProvider(),
+        MedicalRecordProvider(),
         PersonRecordProvider(),
     )

@@ -209,7 +209,13 @@ Generate another supported target:
 
 ```bash
 uv run verisim company-record --locale en_US --indent 2
+uv run verisim order-record --seed 123 --indent 2
+uv run verisim transaction-record --seed 123 --indent 2
 ```
+
+First-class record targets include `person-record`, `company-record`,
+`product-record`, `order-record`, `transaction-record`, `event-record`,
+`support-ticket-record`, `review-record`, and `medical-record`.
 
 Generate a coherent dataset:
 
@@ -311,6 +317,11 @@ CompanyRecord -> Company + Contact + Job
 Person + Job + Company -> Socials
 Person + Job + Company -> Bio
 Person + Address + Contact + Job + Company + Socials -> PersonRecord
+PersonRecord + ProductRecord -> OrderRecord
+PersonRecord + Company -> TransactionRecord
+PersonRecord + Company -> EventRecord / SupportTicketRecord
+PersonRecord + ProductRecord -> ReviewRecord
+PersonRecord + Company -> MedicalRecord
 ```
 
 **Safe by default**
@@ -462,8 +473,10 @@ archive against the pinned SHA-256 manifest before rebuilding packaged JSON.
 ## Current Features
 
 - Pydantic v2 domain models for `PersonRecord`, `CompanyRecord`,
-  `ProductRecord`, `Person`, `Address`, `Contact`, `PhoneNumber`, `Job`,
-  `Company`, `Product`, `Socials`, `Website`, and datasets.
+  `ProductRecord`, `OrderRecord`, `TransactionRecord`, `EventRecord`,
+  `SupportTicketRecord`, `ReviewRecord`, `MedicalRecord`, `Person`,
+  `Address`, `Contact`, `PhoneNumber`, `Job`, `Company`, `Product`,
+  `Socials`, `Website`, and datasets.
 - Context graph provider engine.
 - Per-run uniqueness registry for IDs, usernames, emails, phones, companies,
   and social handles.
