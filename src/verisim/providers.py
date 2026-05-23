@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import date
-from random import Random
 
 from verisim.constants import (
     DEFAULT_EMAIL_PATTERN,
@@ -71,7 +70,13 @@ class AddressProvider:
     requires: tuple[str, ...] = ()
 
     def generate(self, state: GenerationState) -> dict[str, object]:
-        return {"address": state.data.make_address(state.random, state.locale)}
+        address = state.sampler.sample_field(
+            "address",
+            state.random,
+            state.facts,
+            default=lambda: state.data.make_address(state.random, state.locale),
+        )
+        return {"address": address}
 
 
 class PersonProvider:
@@ -82,7 +87,7 @@ class PersonProvider:
         names = state.data.names_for_locale(state.locale, state.script)
         given_name, family_name = self._unique_name(state, names)
         name = f"{given_name} {family_name}"
-        birthdate = self._birthdate(state.random)
+        birthdate = self._birthdate(state)
         username = self._username(state, given_name, family_name, birthdate.year)
         return {
             "person": Person(
@@ -95,10 +100,28 @@ class PersonProvider:
             )
         }
 
-    def _birthdate(self, random: Random) -> date:
-        year = random.randint(1964, 2004)
-        month = random.randint(1, 12)
-        day = random.randint(1, 28)
+    def _birthdate(self, state: GenerationState) -> date:
+        sampled_birthdate = state.sampler.sample_field(
+            "person.birthdate",
+            state.random,
+            state.facts,
+            default=lambda: None,
+        )
+        if isinstance(sampled_birthdate, date):
+            return sampled_birthdate
+        if isinstance(sampled_birthdate, str):
+            return date.fromisoformat(sampled_birthdate)
+
+        year = state.random.randint(1964, 2004)
+        age = state.sampler.sample_field(
+            "person.age",
+            state.random,
+            state.facts,
+            default=lambda: date.today().year - year,
+        )
+        year = date.today().year - int(age)
+        month = state.random.randint(1, 12)
+        day = state.random.randint(1, 28)
         return date(year, month, day)
 
     def _unique_name(self, state: GenerationState, names: NameData) -> tuple[str, str]:
@@ -169,7 +192,15 @@ class IndustryProvider:
         requested = state.facts.get("industry")
         if isinstance(requested, str):
             return {"industry_data": _industry_by_name(state, requested)}
-        return {"industry_data": state.random.choice(state.data.industries)}
+        sampled = state.sampler.sample_field(
+            "industry",
+            state.random,
+            state.facts,
+            default=lambda: state.random.choice(state.data.industries),
+        )
+        if isinstance(sampled, str):
+            sampled = _industry_by_name(state, sampled)
+        return {"industry_data": sampled}
 
 
 class CompanyProvider:
@@ -182,13 +213,20 @@ class CompanyProvider:
         name = self._company_name(state, industry)
         slug = ascii_slug(name)
         domain = f"{slug}.example.invalid"
+        address = state.sampler.sample_field(
+            "company.address",
+            state.random,
+            state.facts,
+            default=lambda: state.data.make_address(state.random, state.locale),
+            annotation=Company.model_fields["address"].annotation,
+        )
         company = Company(
             id=state.registry.uuid("company"),
             name=name,
             industry=industry.industry,
             domain=domain,
             website=Website.from_host(domain),
-            address=state.data.make_address(state.random, state.locale),
+            address=address,
         )
         return {"company": company}
 
@@ -264,10 +302,24 @@ class CompanyRecordProvider(CompanyProvider):
 
         current_year = date.today().year
         if requested_size_band is None:
-            return current_year - state.random.randint(0, 35)
+            return int(
+                state.sampler.sample_field(
+                    "company.founded_year",
+                    state.random,
+                    state.facts,
+                    default=lambda: current_year - state.random.randint(0, 35),
+                )
+            )
 
         low, high = SIZE_BAND_AGE_RANGES[requested_size_band]
-        return current_year - state.random.randint(low, high)
+        return int(
+            state.sampler.sample_field(
+                "company.founded_year",
+                state.random,
+                state.facts,
+                default=lambda: current_year - state.random.randint(low, high),
+            )
+        )
 
     def _size_band(
         self,
@@ -279,14 +331,34 @@ class CompanyRecordProvider(CompanyProvider):
             return requested_size_band
 
         age = max(0, date.today().year - founded_year)
-        for max_age, choices in SIZE_BAND_CHOICES_BY_MAX_AGE:
-            if age <= max_age:
-                return state.random.choice(choices)
-        return state.random.choice(SIZE_BAND_CHOICES_FOR_OLDER_COMPANIES)
+
+        def default_size_band() -> SizeBand:
+            for max_age, choices in SIZE_BAND_CHOICES_BY_MAX_AGE:
+                if age <= max_age:
+                    return state.random.choice(choices)
+            return state.random.choice(SIZE_BAND_CHOICES_FOR_OLDER_COMPANIES)
+
+        sampled = state.sampler.sample_field(
+            "company.size_band",
+            state.random,
+            state.facts,
+            default=default_size_band,
+        )
+        if isinstance(sampled, str) and sampled in SIZE_BAND_EMPLOYEE_RANGES:
+            return sampled  # type: ignore[return-value]
+        return default_size_band()
 
     def _employee_count(self, state: GenerationState, size_band: SizeBand) -> int:
         low, high = SIZE_BAND_EMPLOYEE_RANGES[size_band]
-        return state.random.randint(low, high)
+        sampled = int(
+            state.sampler.sample_field(
+                "company.employee_count",
+                state.random,
+                state.facts,
+                default=lambda: state.random.randint(low, high),
+            )
+        )
+        return max(low, min(high, sampled))
 
     def _legal_entity_type(self, state: GenerationState, country_code: str) -> str:
         entity_types = LEGAL_ENTITY_TYPES_BY_COUNTRY.get(
@@ -355,7 +427,13 @@ class CompanyRecordProvider(CompanyProvider):
         stages = FUNDING_STAGES_BY_SIZE_BAND[size_band]
         if age < 8:
             stages = tuple(stage for stage in stages if stage != "IPO")
-        return state.random.choice(stages)
+        sampled = state.sampler.sample_field(
+            "company.funding_stage",
+            state.random,
+            state.facts,
+            default=lambda: state.random.choice(stages),
+        )
+        return str(sampled)
 
     def _departments(self, industry: IndustryData, size_band: SizeBand) -> list[str]:
         additions = DEPARTMENT_ADDITIONS_BY_SIZE_BAND[size_band]
@@ -450,10 +528,24 @@ class JobProvider:
         )
         return {
             "job": Job(
-                title=state.random.choice(industry.titles),
+                title=str(
+                    state.sampler.sample_field(
+                        "job.title",
+                        state.random,
+                        state.facts,
+                        default=lambda: state.random.choice(industry.titles),
+                    )
+                ),
                 industry=company.industry,
                 department=self._department(state, company, departments),
-                level=state.random.choice(industry.levels),
+                level=str(
+                    state.sampler.sample_field(
+                        "job.level",
+                        state.random,
+                        state.facts,
+                        default=lambda: state.random.choice(industry.levels),
+                    )
+                ),
                 company_id=company.id,
             )
         }
@@ -465,9 +557,24 @@ class JobProvider:
         departments: tuple[str, ...] | list[str],
     ) -> str:
         if "company_record" not in state.facts:
-            return state.random.choice(tuple(departments))
+            return str(
+                state.sampler.sample_field(
+                    "job.department",
+                    state.random,
+                    state.facts,
+                    default=lambda: state.random.choice(tuple(departments)),
+                )
+            )
         index = state.registry.next_index(f"company-department:{company.id}")
-        return departments[index % len(departments)]
+        default_department = departments[index % len(departments)]
+        return str(
+            state.sampler.sample_field(
+                "job.department",
+                state.random,
+                state.facts,
+                default=lambda: default_department,
+            )
+        )
 
 
 class ContactProvider:
@@ -838,7 +945,15 @@ class ProductRecordProvider:
         requested = state.facts.get("size_band")
         if isinstance(requested, str) and requested in SIZE_BAND_EMPLOYEE_RANGES:
             return requested  # type: ignore[return-value]
-        return state.random.choice(tuple(SIZE_BAND_EMPLOYEE_RANGES))
+        sampled = state.sampler.sample_field(
+            "product.target_size_band",
+            state.random,
+            state.facts,
+            default=lambda: state.random.choice(tuple(SIZE_BAND_EMPLOYEE_RANGES)),
+        )
+        if isinstance(sampled, str) and sampled in SIZE_BAND_EMPLOYEE_RANGES:
+            return sampled  # type: ignore[return-value]
+        return "SMB"
 
     def _categories(self, industry: IndustryData) -> tuple[str, ...]:
         return industry.product_categories or ("Operations Platform",)
@@ -929,7 +1044,14 @@ class ProductRecordProvider:
         choices = choices_by_industry.get(
             industry.industry, ("software", "platform", "managed_service")
         )
-        return state.random.choice(choices)
+        return str(
+            state.sampler.sample_field(
+                "product.product_type",
+                state.random,
+                state.facts,
+                default=lambda: state.random.choice(choices),
+            )
+        )
 
     def _pricing_model(self, state: GenerationState, product_type: str) -> str:
         choices_by_type = {
@@ -940,7 +1062,14 @@ class ProductRecordProvider:
             "program": ("project", "contract", "subscription"),
             "financial_product": ("transaction", "contract", "subscription"),
         }
-        return state.random.choice(choices_by_type[product_type])
+        return str(
+            state.sampler.sample_field(
+                "product.pricing_model",
+                state.random,
+                state.facts,
+                default=lambda: state.random.choice(choices_by_type[product_type]),
+            )
+        )
 
     def _features(
         self, state: GenerationState, industry: IndustryData, size_band: SizeBand
@@ -970,12 +1099,43 @@ class ProductRecordProvider:
     def _lifecycle_stage(self, state: GenerationState, launch_year: int) -> str:
         age = max(0, date.today().year - launch_year)
         if age <= 1:
-            return state.random.choice(("beta", "launched"))
+            choices = ("beta", "launched")
+            return str(
+                state.sampler.sample_field(
+                    "product.lifecycle_stage",
+                    state.random,
+                    state.facts,
+                    default=lambda: state.random.choice(choices),
+                )
+            )
         if age <= 3:
-            return state.random.choice(("launched", "growth"))
+            choices = ("launched", "growth")
+            return str(
+                state.sampler.sample_field(
+                    "product.lifecycle_stage",
+                    state.random,
+                    state.facts,
+                    default=lambda: state.random.choice(choices),
+                )
+            )
         if age <= 8:
-            return state.random.choice(("growth", "mature"))
-        return "mature"
+            choices = ("growth", "mature")
+            return str(
+                state.sampler.sample_field(
+                    "product.lifecycle_stage",
+                    state.random,
+                    state.facts,
+                    default=lambda: state.random.choice(choices),
+                )
+            )
+        return str(
+            state.sampler.sample_field(
+                "product.lifecycle_stage",
+                state.random,
+                state.facts,
+                default=lambda: "mature",
+            )
+        )
 
     def _description(
         self,

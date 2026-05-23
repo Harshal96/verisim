@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from importlib.util import find_spec
 from csv import DictReader
+from importlib.util import find_spec
 from itertools import islice
 
 import pytest

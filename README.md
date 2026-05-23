@@ -383,6 +383,107 @@ IPC, and Avro. Relational exports use `companies`, `people`, `products`,
 Postgres-friendly `COPY ... FROM stdin` dump, with `sql_mode="insert"` available
 for portable `INSERT` statements.
 
+## Control Statistical Shape
+
+Verisim profiles let generated records keep coherent context while moving away
+from uniform random choices. Profiles can weight categorical values, draw
+bounded normal or Pareto-shaped values, bias datetimes toward weekdays, apply
+conditional rules, and set null rates for nullable fields.
+
+```python
+from verisim import (
+    ConditionalRule,
+    DatasetSpec,
+    FieldRule,
+    NormalInt,
+    ParetoInt,
+    PersonRecord,
+    Predicate,
+    StatisticalProfile,
+    Verisim,
+    WeightedChoice,
+)
+
+profile = StatisticalProfile(
+    fields={
+        "person.age": FieldRule(
+            distribution=NormalInt(mean=38, stdev=12, minimum=18, maximum=80)
+        ),
+        "company.size_band": FieldRule(
+            distribution=WeightedChoice(
+                values={"startup": 5, "SMB": 8, "mid-market": 4, "enterprise": 1}
+            )
+        ),
+        "company.employee_count": FieldRule(
+            distribution=ParetoInt(minimum=2, shape=1.4, maximum=10_000)
+        ),
+        "company.address": FieldRule(null_rate=0.15),
+    },
+    correlations=[
+        ConditionalRule(
+            when=[Predicate(path="person.age", op="lte", value=25)],
+            apply={
+                "job.level": FieldRule(
+                    distribution=WeightedChoice(values={"Junior": 8, "Senior": 1})
+                )
+            },
+        )
+    ],
+)
+
+v = Verisim(seed=42, profile=profile)
+record = v.generate(PersonRecord)
+dataset = v.dataset(DatasetSpec(people=100, companies=5, profile=profile))
+```
+
+Explicit context still wins over profile rules. For example,
+`context={"size_band": "startup"}` keeps the requested company size even when a
+profile weights other size bands. Null rates are validated before generation and
+are accepted only for nullable fields such as `Company.address`.
+
+Profiles also work with user-defined Pydantic models. Register lightweight
+field resolvers for semantic fields Verisim cannot infer, and use profile rules
+for the statistical parts:
+
+```python
+from datetime import UTC, datetime
+from uuid import UUID
+
+from pydantic import BaseModel
+
+from verisim import DateTimeWindow, FieldContext, FieldRule, StatisticalProfile
+
+
+class AuditEvent(BaseModel):
+    id: UUID
+    amount: int
+    created_at: datetime
+
+
+class AuditResolver:
+    def resolve(self, context: FieldContext) -> object:
+        if context.path == "id":
+            return UUID("00000000-0000-0000-0000-000000000123")
+        return context.unresolved
+
+
+profile = StatisticalProfile(
+    fields={
+        "created_at": FieldRule(
+            distribution=DateTimeWindow(
+                start=datetime(2026, 5, 18, 9, tzinfo=UTC),
+                end=datetime(2026, 5, 22, 17, tzinfo=UTC),
+                weekday_weights={0: 1, 1: 1, 2: 1, 3: 1, 4: 1},
+            )
+        )
+    }
+)
+
+event = Verisim(seed=7, profile=profile, resolvers=[AuditResolver()]).generate(
+    AuditEvent
+)
+```
+
 ## Use Existing Context
 
 You can provide context and ask Verisim to generate the rest:

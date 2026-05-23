@@ -4,10 +4,14 @@ from collections.abc import Iterable, Mapping
 from random import Random
 from typing import Literal, TypeVar
 
+from pydantic import BaseModel
+
 from verisim.constants import LEGAL_ENTITY_TYPES_BY_COUNTRY, SIZE_BAND_EMPLOYEE_RANGES
 from verisim.context import ContextGraph, GenerationState
+from verisim.custom_models import CustomModelGenerator, FieldResolver
 from verisim.data import LiteDataPack
-from verisim.errors import ContextConflictError
+from verisim.distributions import StatisticalProfile, StatisticalSampler
+from verisim.errors import ContextConflictError, UnsupportedModelError
 from verisim.models import (
     Address,
     Company,
@@ -48,10 +52,14 @@ class Verisim:
         script: str = "latin",
         seed: int | None = None,
         data_pack: str | LiteDataPack = "lite",
+        profile: StatisticalProfile | None = None,
+        resolvers: Iterable[FieldResolver] = (),
     ) -> None:
         self.locale = locale
         self.output_language = output_language
         self.script = script
+        self.profile = profile or StatisticalProfile()
+        self.resolvers = tuple(resolvers)
         self.random = Random(seed)
         self.registry = UniquenessRegistry(namespace=f"{locale}:{seed}")
         self.pack_manager = DataPackManager()
@@ -88,7 +96,11 @@ class Verisim:
         model: type[T],
         context: object | Mapping[str, object] | None = None,
         mode: ConflictMode = "strict",
+        profile: StatisticalProfile | None = None,
     ) -> T | GenerationDiagnostics:
+        active_profile = profile or self.profile
+        if isinstance(model, type) and issubclass(model, BaseModel):
+            active_profile.validate_null_rates_for_model(model)
         facts = self._facts_from_context(context, target=model)
         diagnostics = self._diagnostics(facts)
         if mode == "explain":
@@ -101,7 +113,26 @@ class Verisim:
             else:
                 raise ValueError(f"unknown conflict mode {mode!r}")
 
-        state = GenerationState(
+        state = self._state(facts, active_profile)
+        try:
+            return self.graph.generate(model, state)  # type: ignore[return-value]
+        except UnsupportedModelError:
+            if not self._is_custom_model_request(model):
+                raise
+            generator = CustomModelGenerator(
+                random=state.random,
+                registry=state.registry,
+                facts=state.facts,
+                sampler=state.sampler,
+                profile=state.profile,
+                resolvers=state.resolvers,
+            )
+            return generator.generate(model)  # type: ignore[arg-type, return-value]
+
+    def _state(
+        self, facts: dict[str, object], profile: StatisticalProfile
+    ) -> GenerationState:
+        return GenerationState(
             random=self.random,
             data=self.data,
             registry=self.registry,
@@ -109,27 +140,38 @@ class Verisim:
             output_language=self.output_language,
             script=self.script,
             facts=facts,
+            profile=profile,
+            sampler=StatisticalSampler(profile),
+            resolvers=self.resolvers,
         )
-        return self.graph.generate(model, state)  # type: ignore[return-value]
+
+    def _is_custom_model_request(self, model: type[object]) -> bool:
+        if not isinstance(model, type) or not issubclass(model, BaseModel):
+            return False
+        return model not in self.graph.targets
 
     def records(
         self,
         model: type[T],
         count: int,
         context: object | Mapping[str, object] | None = None,
+        profile: StatisticalProfile | None = None,
     ) -> list[T]:
-        return [self.generate(model, context=context) for _ in range(count)]  # type: ignore[list-item]
+        return [
+            self.generate(model, context=context, profile=profile) for _ in range(count)
+        ]  # type: ignore[list-item]
 
     def iter_records(
         self,
         model: type[T],
         count: int | None = None,
         context: object | Mapping[str, object] | None = None,
+        profile: StatisticalProfile | None = None,
     ) -> Iterable[T]:
         produced = 0
         while count is None or produced < count:
             produced += 1
-            yield self.generate(model, context=context)  # type: ignore[misc]
+            yield self.generate(model, context=context, profile=profile)  # type: ignore[misc]
 
     def iter_dataset(self, spec: DatasetSpec) -> Iterable[DatasetEvent]:
         self._validate_dataset_spec(spec)
@@ -147,6 +189,7 @@ class Verisim:
                             PersonRecord,
                             context={"company": company},
                             mode="repair",
+                            profile=spec.profile,
                         ),
                     )
         elif companies:
@@ -158,6 +201,7 @@ class Verisim:
                         PersonRecord,
                         context={"company": company},
                         mode="repair",
+                        profile=spec.profile,
                     ),
                 )
 
@@ -166,7 +210,11 @@ class Verisim:
                 company = companies[index % len(companies)]
                 yield DatasetEvent(
                     kind="product",
-                    record=self.generate(ProductRecord, context={"company": company}),
+                    record=self.generate(
+                        ProductRecord,
+                        context={"company": company},
+                        profile=spec.profile,
+                    ),
                 )
 
     def dataset(self, spec: DatasetSpec) -> Dataset:
@@ -200,10 +248,14 @@ class Verisim:
         companies: list[CompanyRecord] = []
         for size_band in requested_bands:
             companies.append(
-                self.generate(CompanyRecord, context={"size_band": size_band})
+                self.generate(
+                    CompanyRecord,
+                    context={"size_band": size_band},
+                    profile=spec.profile,
+                )
             )
         while len(companies) < spec.companies:
-            companies.append(self.generate(CompanyRecord))
+            companies.append(self.generate(CompanyRecord, profile=spec.profile))
         return companies
 
     def _facts_from_context(
