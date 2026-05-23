@@ -4,12 +4,17 @@ import json
 import sqlite3
 from csv import DictReader
 
+import click
 from typer.testing import CliRunner
 
 import verisim.cli as cli
 from verisim.cli import app
 
 runner = CliRunner()
+
+
+def _plain_output(result) -> str:
+    return click.unstyle(result.output)
 
 
 def test_cli_version_option():
@@ -173,7 +178,7 @@ def test_cli_dataset_requires_output_for_file_based_formats():
     result = runner.invoke(app, ["dataset", "--format", "csv"])
 
     assert result.exit_code != 0
-    assert "--output is required when --format is not json" in result.output
+    assert "--output is required when --format is not json" in _plain_output(result)
 
 
 def test_cli_record_command_exports_repeated_records_as_csv(tmp_path):
@@ -232,17 +237,18 @@ def test_cli_generates_new_domain_record_json():
 
 def test_cli_rejects_unknown_target_with_supported_choices():
     result = runner.invoke(app, ["unknown"])
+    output = _plain_output(result)
 
     assert result.exit_code != 0
-    assert "unsupported target" in result.output
-    assert "person-record" in result.output
+    assert "unsupported target" in output
+    assert "person-record" in output
 
 
 def test_cli_rejects_unknown_option():
     result = runner.invoke(app, ["--bogus"])
 
     assert result.exit_code != 0
-    assert "No such option" in result.output
+    assert "No such option" in _plain_output(result)
 
 
 def test_cli_version_falls_back_when_package_metadata_is_missing(monkeypatch):
