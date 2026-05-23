@@ -146,6 +146,7 @@ Install optional package tiers as they become available:
 uv add "verisim[lite]"
 uv add "verisim[full]"
 uv add "verisim[ai]"
+uv add "verisim[export]"
 ```
 
 ## Development From Source
@@ -214,6 +215,22 @@ Generate a coherent dataset:
 
 ```bash
 uv run verisim dataset --people 40 --companies 6 --seed 7 --indent 2
+```
+
+Export a coherent dataset in relational, wide, or combined layouts:
+
+```bash
+uv run verisim dataset --people 40 --companies 6 --products 12 --seed 7 --format csv --layout both --output dataset_tables/
+uv run verisim dataset --people 40 --companies 6 --products 12 --seed 7 --format sql --sql-mode copy --output dataset.sql
+uv run verisim dataset --people 40 --companies 6 --products 12 --seed 7 --format sqlite --output dataset.sqlite
+```
+
+The `verisim[export]` extra enables Parquet, Arrow/Feather, and Avro:
+
+```bash
+uv add "verisim[export]"
+uv run verisim dataset --people 1000000 --companies 5000 --format parquet --layout relational --output dataset_parquet/
+uv run verisim person-record --repeat 1000000 --format parquet --output people.parquet
 ```
 
 Write output to a file:
@@ -333,6 +350,28 @@ The dataset path uses the same context-aware providers as single-record
 generation, so uniqueness, email domains, job industries, company size bands,
 and department distribution are preserved.
 
+Large dataset exports can stream from `iter_dataset()` without building a full
+`Dataset` in memory:
+
+```python
+from pathlib import Path
+
+from verisim import DatasetSpec, Verisim, export_dataset
+
+v = Verisim(seed=7)
+events = v.iter_dataset(DatasetSpec(people=1_000_000, companies=5_000, products=20_000))
+
+export_dataset(events, "sql", Path("dataset.sql"), layout="both", sql_mode="copy")
+```
+
+`export_dataset()` supports nested JSON for materialized datasets, event JSONL,
+relational CSV directories, SQL dumps, SQLite databases, Parquet, Feather/Arrow
+IPC, and Avro. Relational exports use `companies`, `people`, `products`,
+`product_plans`, `social_accounts`, and `export_metadata`; wide exports use
+`people_wide` and `products_wide` joined with company fields. SQL defaults to a
+Postgres-friendly `COPY ... FROM stdin` dump, with `sql_mode="insert"` available
+for portable `INSERT` statements.
+
 ## Use Existing Context
 
 You can provide context and ask Verisim to generate the rest:
@@ -443,6 +482,7 @@ The package declares extras for the intended product tiers:
 verisim[lite]
 verisim[full]
 verisim[ai]
+verisim[export]
 ```
 
 Current state:
@@ -450,6 +490,8 @@ Current state:
 - `lite`: implemented as the built-in data pack.
 - `full`: reserved for large regional/global data packs.
 - `ai`: reserved for optional prose-generation adapters.
+- `export`: enables PyArrow and fastavro writers for Parquet, Feather/Arrow,
+  and Avro.
 
 The core package remains offline and deterministic. AI or external data should
 be opt-in, auditable, and replaceable.
