@@ -11,6 +11,14 @@ class UnsupportedModelError(VerisimError):
     """Raised when no provider graph can generate the requested model."""
 
 
+class ProfileValidationError(VerisimError, ValueError):
+    """Raised when a statistical profile cannot be applied safely."""
+
+
+class GenerationResolutionError(VerisimError, ValueError):
+    """Raised when a custom model field cannot be generated."""
+
+
 class ContextConflictError(VerisimError):
     """Raised when supplied context contradicts generated-model invariants."""
 

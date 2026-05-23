@@ -587,9 +587,9 @@ class MedicalRecordProvider:
             ),
             diagnoses=diagnoses,
             notes=self._notes(patient, diagnoses),
-            follow_up_date=None
-            if follow_up_date is None
-            else follow_up_date.isoformat(),
+            follow_up_date=(
+                None if follow_up_date is None else follow_up_date.isoformat()
+            ),
         )
         return {"medical_record": record}
 

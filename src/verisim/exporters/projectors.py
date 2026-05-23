@@ -16,7 +16,7 @@ from verisim.models import (
     ProductRecord,
 )
 
-from .schema import ExportLayout, SCHEMA_VERSION
+from .schema import SCHEMA_VERSION, ExportLayout
 
 Row: TypeAlias = dict[str, object | None]
 

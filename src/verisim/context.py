@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from random import Random
 from typing import Protocol
 
+from verisim.custom_models import FieldResolver
 from verisim.data import LiteDataPack
+from verisim.distributions import StatisticalProfile, StatisticalSampler
 from verisim.errors import UnsupportedModelError
 from verisim.registry import UniquenessRegistry
 
@@ -19,6 +21,9 @@ class GenerationState:
     output_language: str
     script: str
     facts: dict[str, object]
+    profile: StatisticalProfile = field(default_factory=StatisticalProfile)
+    sampler: StatisticalSampler = field(default_factory=StatisticalSampler)
+    resolvers: tuple[FieldResolver, ...] = ()
 
 
 class Provider(Protocol):
@@ -37,6 +42,10 @@ class ContextGraph:
             for fact in provider.provides:
                 self._providers_by_fact[fact] = provider
         self._targets = dict(targets)
+
+    @property
+    def targets(self) -> Mapping[type, str]:
+        return self._targets
 
     def generate(self, model: type, state: GenerationState) -> object:
         target_fact = self._targets.get(model)

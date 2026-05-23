@@ -8,6 +8,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from verisim.constants import CANADIAN_NANP_AREA_CODES
+from verisim.distributions import StatisticalProfile
 from verisim.types import (
     BillingInterval,
     CountryCode,
@@ -479,6 +480,7 @@ class DatasetSpec(VerisimModel):
     companies: int = Field(default=3, ge=0)
     products: int = Field(default=0, ge=0)
     people_per_company: dict[SizeBand, int] | None = None
+    profile: StatisticalProfile | None = None
 
 
 class Dataset(VerisimModel):
