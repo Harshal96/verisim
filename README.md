@@ -383,6 +383,34 @@ IPC, and Avro. Relational exports use `companies`, `people`, `products`,
 Postgres-friendly `COPY ... FROM stdin` dump, with `sql_mode="insert"` available
 for portable `INSERT` statements.
 
+## Mask Existing PII
+
+The `verisim[masking]` extra can mask direct identifiers in existing tabular
+data. It detects likely person, email, phone, and address columns, then replaces
+each real identity with a coherent synthetic `PersonRecord`. Reusing a
+`MaskingSession` preserves mappings across multiple DataFrames or SQL tables
+within the same run, so repeated emails and related rows keep joining.
+
+```python
+import pandas as pd
+
+from verisim import MaskingConfig, MaskingSession, mask_dataframe
+
+df = pd.DataFrame(
+    [
+        {"name": "Alice Adams", "email": "alice@company.com", "city": "Chicago"},
+        {"name": "Alice Adams", "email": "alice@company.com", "city": "Chicago"},
+    ]
+)
+
+session = MaskingSession(MaskingConfig(seed=42))
+masked = mask_dataframe(df, session=session).data
+```
+
+For DB-API connections, `mask_sql_table()` creates a masked destination table
+and leaves the source table untouched. The v1 write path is SQLite-tested and
+uses simple validated table identifiers.
+
 ## Control Statistical Shape
 
 Verisim profiles let generated records keep coherent context while moving away
@@ -584,9 +612,11 @@ archive against the pinned SHA-256 manifest before rebuilding packaged JSON.
 - Lite data pack with US, UK, Canada, Australia, India, and Germany sample
   support.
 - Non-routable synthetic emails, websites, and avatar URLs.
+- Consistency-preserving PII masking for pandas DataFrames and DB-API SQL table
+  copies.
 - Strict, repair, and explain modes for existing context.
 - Importable and runnable `examples` package.
-- 100% measured coverage across `src/verisim` and `examples`.
+- 90%+ measured coverage across `src/verisim` and `examples`.
 
 ## Package Shape
 

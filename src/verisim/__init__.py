@@ -21,6 +21,14 @@ from verisim.errors import (
     UnsupportedModelError,
 )
 from verisim.exporters import export_dataset, export_records
+from verisim.masking import (
+    MaskingConfig,
+    MaskingResult,
+    MaskingSession,
+    PIIColumn,
+    mask_dataframe,
+    mask_sql_table,
+)
 from verisim.models import (
     Address,
     Company,
@@ -113,6 +121,9 @@ __all__ = [
     "LineItemRecord",
     "MedicalRecord",
     "MedicalVisitType",
+    "MaskingConfig",
+    "MaskingResult",
+    "MaskingSession",
     "NormalDate",
     "NormalFloat",
     "NormalInt",
@@ -123,6 +134,7 @@ __all__ = [
     "ParetoInt",
     "PatientDemographics",
     "PatientSex",
+    "PIIColumn",
     "Person",
     "PersonRecord",
     "PhoneNumber",
@@ -154,4 +166,6 @@ __all__ = [
     "WeightedChoice",
     "export_dataset",
     "export_records",
+    "mask_dataframe",
+    "mask_sql_table",
 ]

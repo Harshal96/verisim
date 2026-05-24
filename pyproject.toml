@@ -42,10 +42,14 @@ export = [
   "fastavro>=1.9",
   "pyarrow>=16",
 ]
+masking = [
+  "pandas>=2.2,<3",
+]
 dev = [
   "autoflake>=2.3",
   "black>=25.0",
   "coverage[toml]>=7.5",
+  "pandas>=2.2,<3",
   "isort>=5.13",
   "pytest>=8.0",
   "ruff>=0.14",
