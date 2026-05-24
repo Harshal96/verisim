@@ -599,6 +599,53 @@ uv run python scripts/build_country_datasets.py --download
 The refresh script downloads archives over HTTPS and verifies each source
 archive against the pinned SHA-256 manifest before rebuilding packaged JSON.
 
+## Framework Integrations
+
+Install only the integration dependencies you need:
+
+```bash
+uv add "verisim[sqlalchemy]"
+uv add "verisim[django]"
+uv add "verisim[pytest]"
+```
+
+SQLAlchemy factories inspect mapped classes and return unsaved instances ready
+for `session.add()`:
+
+```python
+from verisim.integrations.sqlalchemy import verisim_factory
+
+user_factory = verisim_factory(User, seed=123)
+user = user_factory.build()
+
+session.add(user)
+session.commit()
+```
+
+Django factories support unsaved builds and manager-backed creates:
+
+```python
+from verisim.integrations.django import verisim_factory
+
+user_factory = verisim_factory(User, seed=123)
+unsaved_user = user_factory.build()
+saved_user = user_factory.create()
+```
+
+Pytest helpers wrap `@pytest.fixture` with deterministic seeded records and
+normal fixture scopes:
+
+```python
+from verisim.integrations.pytest import verisim_fixture
+
+user = verisim_fixture(User, adapter="sqlalchemy", scope="function", seed=123)
+```
+
+The integrations map common field names such as `email`, `username`,
+`first_name`, `city`, `domain`, and `company_name` from coherent Verisim facts,
+then fall back to framework field types and simple constraints such as choices,
+lengths, nullability, defaults, and required parent relationships.
+
 ## Current Features
 
 - Pydantic v2 domain models for `PersonRecord`, `CompanyRecord`,
@@ -627,6 +674,9 @@ verisim[lite]
 verisim[full]
 verisim[ai]
 verisim[export]
+verisim[sqlalchemy]
+verisim[django]
+verisim[pytest]
 ```
 
 Current state:
@@ -636,6 +686,8 @@ Current state:
 - `ai`: reserved for optional prose-generation adapters.
 - `export`: enables PyArrow and fastavro writers for Parquet, Feather/Arrow,
   and Avro.
+- `sqlalchemy`, `django`, and `pytest`: enable framework-specific factories
+  and fixture helpers.
 
 The core package remains offline and deterministic. AI or external data should
 be opt-in, auditable, and replaceable.
