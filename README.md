@@ -553,6 +553,54 @@ Conflict modes:
 - `repair`: keep valid context and regenerate dependent conflicting fields.
 - `explain`: return diagnostics without generating a replacement record.
 
+## Testing And QA Modes
+
+Verisim can generate fixtures for validation, parser, and deduplication tests
+without leaving the Pydantic-object contract.
+
+```python
+from pydantic import ValidationError
+
+from verisim import DatasetSpec, PersonRecord, Verisim
+
+v = Verisim(seed=42)
+
+edge_record = v.generate(PersonRecord, mode="edge_cases", edge_case="nul")
+
+try:
+    v.generate(PersonRecord, mode="schema_violations", violation="contact.email")
+except ValidationError:
+    # Pydantic raises a validation error for the intentionally invalid payload.
+    pass
+
+dataset = v.dataset(
+    DatasetSpec(
+        people=100,
+        companies=10,
+        people_duplicate_percent=10,
+    )
+)
+```
+
+`mode="edge_cases"` returns valid model instances with boundary values such as
+empty strings, long strings, null bytes, right-to-left text, negative
+coordinates, and epoch-zero dates. `mode="schema_violations"` builds an invalid
+payload from a valid record and raises a Pydantic validation error; it never
+returns an invalid model instance.
+
+Duplicate injection keeps the requested total count fixed. For example,
+`people=100` with `people_duplicate_percent=10` returns 100 people, including 10
+same-ID near duplicates. JSON and CSV exports preserve those rows. SQL and
+SQLite exports may fail on primary-key or unique constraints, which is useful
+when testing constraint handling.
+
+The same options are available from the CLI:
+
+```bash
+uv run verisim person-record --mode edge_cases --edge-case rtl --seed 42
+uv run verisim dataset --people 100 --companies 10 --people-duplicate-percent 10
+```
+
 ## Locale And Script
 
 Locale describes the cultural/data origin. Output language and script are
