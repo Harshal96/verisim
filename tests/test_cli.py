@@ -206,6 +206,95 @@ def test_cli_record_command_exports_repeated_records_as_csv(tmp_path):
     assert rows[0]["person_name"]
 
 
+def test_cli_record_edge_case_mode_outputs_boundary_json():
+    result = runner.invoke(
+        app,
+        [
+            "person-record",
+            "--seed",
+            "123",
+            "--mode",
+            "edge_cases",
+            "--edge-case",
+            "nul",
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert "\x00" in payload["bio"]
+
+
+def test_cli_record_schema_violation_mode_raises_validation_error():
+    result = runner.invoke(
+        app,
+        [
+            "person-record",
+            "--seed",
+            "123",
+            "--mode",
+            "schema_violations",
+            "--violation",
+            "contact.email",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert result.exception is not None
+
+
+def test_cli_record_duplicate_percent_keeps_requested_repeat_count():
+    result = runner.invoke(
+        app,
+        [
+            "person-record",
+            "--seed",
+            "123",
+            "--repeat",
+            "5",
+            "--duplicate-percent",
+            "40",
+        ],
+    )
+
+    assert result.exit_code == 0
+    payloads = [json.loads(line) for line in result.stdout.splitlines() if line]
+    assert len(payloads) == 5
+    assert len({payload["id"] for payload in payloads}) == 3
+
+
+def test_cli_dataset_per_collection_duplicate_flags():
+    result = runner.invoke(
+        app,
+        [
+            "dataset",
+            "--people",
+            "5",
+            "--companies",
+            "4",
+            "--products",
+            "4",
+            "--seed",
+            "123",
+            "--people-duplicate-percent",
+            "40",
+            "--companies-duplicate-percent",
+            "25",
+            "--products-duplicate-percent",
+            "50",
+        ],
+    )
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert len(payload["people"]) == 5
+    assert len(payload["companies"]) == 4
+    assert len(payload["products"]) == 4
+    assert len({record["id"] for record in payload["people"]}) == 3
+    assert len({record["id"] for record in payload["companies"]}) == 3
+    assert len({record["id"] for record in payload["products"]}) == 2
+
+
 def test_cli_generates_product_record_json():
     result = runner.invoke(app, ["product-record", "--seed", "123"])
 

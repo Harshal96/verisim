@@ -481,6 +481,9 @@ class DatasetSpec(VerisimModel):
     products: int = Field(default=0, ge=0)
     people_per_company: dict[SizeBand, int] | None = None
     profile: StatisticalProfile | None = None
+    people_duplicate_percent: int = Field(default=0, ge=0, le=100)
+    companies_duplicate_percent: int = Field(default=0, ge=0, le=100)
+    products_duplicate_percent: int = Field(default=0, ge=0, le=100)
 
 
 class Dataset(VerisimModel):
