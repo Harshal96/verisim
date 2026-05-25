@@ -51,6 +51,9 @@ export = [
   "fastavro>=1.9",
   "pyarrow>=16",
 ]
+kafka = [
+  "confluent-kafka>=2.5",
+]
 masking = [
   "pandas>=2.2,<3",
 ]

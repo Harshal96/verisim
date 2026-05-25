@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import sys
+from datetime import datetime
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Annotated, Literal
@@ -8,6 +10,12 @@ import click
 import typer
 from pydantic import BaseModel
 
+from verisim.activity import (
+    ActivityStreamSpec,
+    JsonlActivitySink,
+    KafkaActivitySink,
+    emit_activity_stream,
+)
 from verisim.api import Verisim
 from verisim.exporters import export_dataset, export_records
 from verisim.models import (
@@ -33,6 +41,7 @@ CliExportFormat = Literal[
 ]
 CliLayout = Literal["relational", "wide", "both"]
 CliSqlMode = Literal["copy", "insert"]
+CliActivitySink = Literal["jsonl", "kafka"]
 CliGenerationMode = Literal[
     "strict", "repair", "explain", "edge_cases", "schema_violations"
 ]
@@ -327,6 +336,71 @@ def dataset(
             "seed": seed,
         },
     )
+
+
+def _parse_datetime_option(value: str | None, option_name: str) -> datetime | None:
+    if value is None:
+        return None
+    try:
+        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as error:
+        raise typer.BadParameter(
+            f"{option_name} must be an ISO-8601 datetime"
+        ) from error
+
+
+@app.command("activity-stream")
+def activity_stream(
+    people: Annotated[int, typer.Option("--people", min=1)] = 1,
+    events_per_person: Annotated[int, typer.Option("--events-per-person", min=1)] = 100,
+    locale: Annotated[str, typer.Option("--locale", "-l")] = "en_US",
+    output_language: Annotated[str, typer.Option("--output-language")] = "en",
+    script: Annotated[str, typer.Option("--script")] = "latin",
+    seed: Annotated[int | None, typer.Option("--seed")] = None,
+    sink: Annotated[CliActivitySink, typer.Option("--sink")] = "jsonl",
+    output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
+    throughput: Annotated[float | None, typer.Option("--throughput", min=0.0)] = None,
+    start_at: Annotated[str | None, typer.Option("--start-at")] = None,
+    end_at: Annotated[str | None, typer.Option("--end-at")] = None,
+    bootstrap_servers: Annotated[
+        str | None, typer.Option("--bootstrap-servers")
+    ] = None,
+    topic: Annotated[str | None, typer.Option("--topic")] = None,
+) -> None:
+    if throughput is not None and throughput <= 0:
+        raise typer.BadParameter("--throughput must be greater than 0")
+    spec = ActivityStreamSpec(
+        people=people,
+        events_per_person=events_per_person,
+        start_at=_parse_datetime_option(start_at, "--start-at"),
+        end_at=_parse_datetime_option(end_at, "--end-at"),
+    )
+    verisim = Verisim(
+        locale=locale,
+        output_language=output_language,
+        script=script,
+        seed=seed,
+    )
+    events = verisim.iter_activity_stream(spec)
+    if sink == "jsonl":
+        activity_sink = (
+            JsonlActivitySink.from_path(output)
+            if output is not None
+            else JsonlActivitySink(sys.stdout)
+        )
+    else:
+        missing = []
+        if bootstrap_servers is None:
+            missing.append("--bootstrap-servers is required")
+        if topic is None:
+            missing.append("--topic is required")
+        if missing:
+            raise typer.BadParameter("; ".join(missing))
+        activity_sink = KafkaActivitySink(
+            topic=topic,
+            bootstrap_servers=bootstrap_servers,
+        )
+    emit_activity_stream(events, activity_sink, throughput_rps=throughput)
 
 
 def main() -> None:

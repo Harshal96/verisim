@@ -223,6 +223,25 @@ Generate a coherent dataset:
 uv run verisim dataset --people 40 --companies 6 --seed 7 --indent 2
 ```
 
+Generate a chronological activity stream for synthetic people:
+
+```bash
+uv run verisim activity-stream --people 10 --events-per-person 100 --seed 7
+uv run verisim activity-stream --people 10 --events-per-person 100 --sink jsonl --output activity.jsonl --throughput 250
+```
+
+Activity stream events are emitted as JSON lines with a stable envelope
+containing schema version, global sequence, per-person sequence, actor,
+timestamp, activity kind, session id, and a typed payload. Supported activity
+kinds are `login`, `purchase`, and `support_ticket`.
+
+Kafka output is available through the optional Kafka extra:
+
+```bash
+uv add "verisim[kafka]"
+uv run verisim activity-stream --sink kafka --bootstrap-servers localhost:9092 --topic activity-events --throughput 500
+```
+
 Export a coherent dataset in relational, wide, or combined layouts:
 
 ```bash
