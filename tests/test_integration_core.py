@@ -60,6 +60,22 @@ def test_value_generator_maps_common_semantic_field_names(
     assert value
 
 
+def test_value_generator_uses_shared_semantic_value_generation():
+    generator = IntegrationValueGenerator(seed=55)
+
+    email = generator.value_for(name="email", model_name="User", python_type=str)
+    company = generator.value_for(
+        name="company_name",
+        model_name="Organization",
+        python_type=str,
+    )
+
+    assert isinstance(email, str)
+    assert email.endswith(".example.invalid")
+    assert isinstance(company, str)
+    assert company
+
+
 def test_value_generator_uses_choices_before_semantic_or_type_generation():
     generator = IntegrationValueGenerator(seed=1)
 

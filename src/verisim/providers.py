@@ -739,6 +739,18 @@ class ContactProvider:
                     country_calling_code="+86",
                 )
 
+            if country_code not in {"US", "CA"}:
+                country = state.data.countries.get(country_code)
+                calling_code = country.calling_code if country is not None else "+1"
+                area = area_code("1")
+                subscriber = f"{5550000 + (sequence % 10_000):07d}"
+                return PhoneNumber(
+                    e164=f"{calling_code}{area}{subscriber}",
+                    national=f"{area} {subscriber[:3]} {subscriber[3:]}",
+                    country_code=country_code,
+                    country_calling_code=calling_code,
+                )
+
             area = area_code("555")
             line = sequence % 10_000
             resolved_country_code = "CA" if country_code == "CA" else "US"

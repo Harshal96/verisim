@@ -83,6 +83,14 @@ def test_sqlalchemy_factory_overrides_values_and_can_add_to_session():
     assert saved.organization_id is not None
 
 
+def test_sqlalchemy_factory_exposes_provider_plan():
+    factory = verisim_factory(User, seed=123)
+    plan = factory.provider_plan()
+
+    assert plan.source_kind == "sqlalchemy"
+    assert plan.field("email").semantic == "email"
+
+
 def test_sqlalchemy_factory_rejects_required_fields_without_safe_generator():
     factory = verisim_factory(UnsupportedRequired, seed=9)
 

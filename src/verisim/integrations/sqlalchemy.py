@@ -7,6 +7,7 @@ from verisim.integrations._core import (
     IntegrationValueGenerator,
     UnsupportedIntegrationFieldError,
 )
+from verisim.introspection import ProviderPlan, infer_providers
 
 try:
     from sqlalchemy import inspect
@@ -70,6 +71,9 @@ class SQLAlchemyFactory:
         session.add(instance)
         session.flush()
         return instance
+
+    def provider_plan(self) -> ProviderPlan:
+        return infer_providers(self.model)
 
     def _values(
         self,

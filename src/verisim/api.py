@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from random import Random
-from typing import Literal, TypeVar
+from typing import Literal, TypeVar, overload
 
 from pydantic import BaseModel
 
@@ -102,6 +102,28 @@ class Verisim:
             },
         )
 
+    @overload
+    def generate(
+        self,
+        model: type[T],
+        context: object | Mapping[str, object] | None = None,
+        mode: Literal["explain"] = "explain",
+        profile: StatisticalProfile | None = None,
+        edge_case: str | None = None,
+        violation: str | None = None,
+    ) -> GenerationDiagnostics: ...
+
+    @overload
+    def generate(
+        self,
+        model: type[T],
+        context: object | Mapping[str, object] | None = None,
+        mode: Literal["strict", "repair", "edge_cases", "schema_violations"] = "strict",
+        profile: StatisticalProfile | None = None,
+        edge_case: str | None = None,
+        violation: str | None = None,
+    ) -> T: ...
+
     def generate(
         self,
         model: type[T],
@@ -140,6 +162,10 @@ class Verisim:
         except UnsupportedModelError:
             if not self._is_custom_model_request(model):
                 raise
+            semantic_records = {
+                "person_record": self.graph.generate(PersonRecord, state),
+                "company_record": self.graph.generate(CompanyRecord, state),
+            }
             generator = CustomModelGenerator(
                 random=state.random,
                 registry=state.registry,
@@ -147,6 +173,7 @@ class Verisim:
                 sampler=state.sampler,
                 profile=state.profile,
                 resolvers=state.resolvers,
+                semantic_records=semantic_records,
             )
             return generator.generate(model)  # type: ignore[arg-type, return-value]
 

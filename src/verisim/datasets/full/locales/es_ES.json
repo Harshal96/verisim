@@ -1,0 +1,28 @@
+{
+  "locale": "es_ES",
+  "script": "latin",
+  "given": [
+    "Lucia",
+    "Sofia",
+    "Martina",
+    "Hugo",
+    "Mateo",
+    "Leo",
+    "Valeria",
+    "Daniel",
+    "Alba",
+    "Pablo"
+  ],
+  "family": [
+    "Garcia",
+    "Rodriguez",
+    "Gonzalez",
+    "Fernandez",
+    "Lopez",
+    "Martinez",
+    "Sanchez",
+    "Perez",
+    "Gomez",
+    "Martin"
+  ]
+}

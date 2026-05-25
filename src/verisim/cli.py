@@ -32,7 +32,12 @@ from verisim.ai import (
     ner_dataset,
 )
 from verisim.api import Verisim
-from verisim.exporters import export_dataset, export_records
+from verisim.exporters import (
+    export_dataset,
+    export_records,
+    write_json_schema,
+    write_openapi_components,
+)
 from verisim.models import (
     Address,
     CompanyRecord,
@@ -58,6 +63,7 @@ CliLayout = Literal["relational", "wide", "both"]
 CliSqlMode = Literal["copy", "insert"]
 CliActivitySink = Literal["jsonl", "kafka"]
 CliAIFormat = Literal["json", "jsonl"]
+CliSchemaDialect = Literal["json-schema-2020-12", "openapi-3.1"]
 CliGenerationMode = Literal[
     "strict", "repair", "explain", "edge_cases", "schema_violations"
 ]
@@ -114,6 +120,24 @@ TARGETS: dict[str, type[BaseModel]] = {
     "transaction-record": TransactionRecord,
     "website": Website,
 }
+
+
+@app.command("schema")
+def schema_command(
+    target: Annotated[str, typer.Argument(help="Built-in Verisim target name.")],
+    output: Annotated[Path, typer.Option("--output", "-o")],
+    dialect: Annotated[CliSchemaDialect, typer.Option("--dialect")] = (
+        "json-schema-2020-12"
+    ),
+) -> None:
+    model = TARGETS.get(target)
+    if model is None:
+        supported = ", ".join(sorted(TARGETS))
+        raise typer.BadParameter(f"unsupported target. Choose one of: {supported}")
+    if dialect == "openapi-3.1":
+        write_openapi_components([model], output)
+        return
+    write_json_schema(model, output, dialect=dialect)
 
 
 def _package_version() -> str:

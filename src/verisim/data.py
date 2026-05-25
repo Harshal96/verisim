@@ -67,6 +67,7 @@ class CountryData:
     street_names: tuple[str, ...]
     street_suffixes: tuple[str, ...]
     regions: tuple[RegionData, ...]
+    address_templates: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -106,6 +107,9 @@ def _country_from_payload(payload: dict[str, object]) -> CountryData:
         calling_code=str(payload["calling_code"]),
         street_names=tuple(str(name) for name in payload["street_names"]),
         street_suffixes=tuple(str(suffix) for suffix in payload["street_suffixes"]),
+        address_templates=tuple(
+            str(template) for template in payload.get("address_templates", ())
+        ),
         regions=tuple(
             RegionData(
                 name=str(region["name"]),
@@ -832,11 +836,18 @@ class LiteDataPack:
             else self.country_for_locale(locale)
         )
         _, region, city = self.choose_city(random, country.code)
-        line1 = (
-            f"{random.randint(10, 9999)} "
-            f"{random.choice(self.street_names_for_country(country.code))} "
-            f"{random.choice(country.street_suffixes)}"
-        )
+        building_number = str(random.randint(10, 9999))
+        street_name = random.choice(self.street_names_for_country(country.code))
+        suffix = random.choice(country.street_suffixes)
+        if country.address_templates:
+            template = random.choice(country.address_templates)
+            line1 = template.format(
+                building_number=building_number,
+                street_name=street_name,
+                suffix=suffix,
+            )
+        else:
+            line1 = f"{building_number} {street_name} {suffix}"
         return Address(
             line1=line1,
             city=city.name,
