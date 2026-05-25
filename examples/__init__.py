@@ -1,6 +1,7 @@
 """Runnable examples for Verisim."""
 
 __all__ = [
+    "ai_training",
     "basic_person",
     "company_record",
     "context_repair",

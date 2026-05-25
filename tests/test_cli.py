@@ -6,6 +6,7 @@ from csv import DictReader
 from datetime import UTC, datetime
 
 import click
+import pytest
 from typer.testing import CliRunner
 
 import verisim.cli as cli
@@ -180,6 +181,113 @@ def test_cli_dataset_requires_output_for_file_based_formats():
 
     assert result.exit_code != 0
     assert "--output is required when --format is not json" in _plain_output(result)
+
+
+@pytest.mark.parametrize(
+    ("command", "payload_key"),
+    (
+        ("instruction-pairs", "examples"),
+        ("classification", "examples"),
+        ("ner", "sequences"),
+        ("chat", "transcripts"),
+    ),
+)
+def test_cli_ai_commands_emit_materialized_json(command: str, payload_key: str):
+    result = runner.invoke(app, ["ai", command, "--count", "2", "--seed", "123"])
+
+    assert result.exit_code == 0
+    payload = json.loads(result.stdout)
+    assert len(payload[payload_key]) == 2
+
+
+@pytest.mark.parametrize(
+    "command", ("instruction-pairs", "classification", "ner", "chat")
+)
+def test_cli_ai_commands_emit_jsonl_records(command: str):
+    result = runner.invoke(
+        app,
+        ["ai", command, "--count", "2", "--seed", "123", "--format", "jsonl"],
+    )
+
+    assert result.exit_code == 0
+    lines = [json.loads(line) for line in result.stdout.splitlines()]
+    assert len(lines) == 2
+
+
+def test_cli_ai_classification_accepts_weighted_labels():
+    result = runner.invoke(
+        app,
+        [
+            "ai",
+            "classification",
+            "--count",
+            "5",
+            "--seed",
+            "123",
+            "--label",
+            "positive=4",
+            "--label",
+            "critical=1",
+        ],
+    )
+
+    assert result.exit_code == 0
+    labels = [example["label"] for example in json.loads(result.stdout)["examples"]]
+    assert labels.count("positive") == 4
+    assert labels.count("critical") == 1
+
+
+@pytest.mark.parametrize(
+    ("label", "message"),
+    (
+        ("positive", "--label must use label=weight"),
+        ("=1", "--label names must not be blank"),
+        ("positive=many", "--label weights must be numeric"),
+        ("positive=0", "--label weights must be positive"),
+    ),
+)
+def test_cli_ai_classification_rejects_invalid_label_weights(label: str, message: str):
+    result = runner.invoke(
+        app,
+        ["ai", "classification", "--label", label],
+    )
+
+    assert result.exit_code != 0
+    assert message in _plain_output(result)
+
+
+def test_cli_ai_chat_writes_jsonl_file(tmp_path):
+    output = tmp_path / "chat.jsonl"
+
+    result = runner.invoke(
+        app,
+        [
+            "ai",
+            "chat",
+            "--count",
+            "1",
+            "--seed",
+            "123",
+            "--format",
+            "jsonl",
+            "--min-turns",
+            "2",
+            "--max-turns",
+            "2",
+            "--output",
+            str(output),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert result.stdout == ""
+    payload = json.loads(output.read_text())
+    assert [message["role"] for message in payload["messages"]] == [
+        "user",
+        "assistant",
+        "user",
+        "assistant",
+    ]
 
 
 def test_cli_activity_stream_outputs_seeded_jsonl():

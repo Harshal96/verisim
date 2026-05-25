@@ -1,9 +1,15 @@
-from __future__ import annotations
-
-from typing import Protocol
-
-from verisim.ai_training import (
-    AIGenerationAdapter,
+from verisim.ai_training.adapters import AIGenerationAdapter, OfflineAIGenerationAdapter
+from verisim.ai_training.generation import (
+    chat_dataset,
+    classification_dataset,
+    instruction_dataset,
+    iter_chat_transcripts,
+    iter_classification_examples,
+    iter_instruction_pairs,
+    iter_ner_sequences,
+    ner_dataset,
+)
+from verisim.ai_training.models import (
     AITrainingContext,
     ChatDataset,
     ChatDatasetSpec,
@@ -22,32 +28,7 @@ from verisim.ai_training import (
     NerDatasetSpec,
     NerEntity,
     NerSequence,
-    OfflineAIGenerationAdapter,
-    chat_dataset,
-    classification_dataset,
-    instruction_dataset,
-    iter_chat_transcripts,
-    iter_classification_examples,
-    iter_instruction_pairs,
-    iter_ner_sequences,
-    ner_dataset,
 )
-from verisim.models import Company, Job, Person
-
-
-class ProseAdapter(Protocol):
-    def bio(self, person: Person, job: Job, company: Company) -> str: ...
-
-
-class OfflineProseAdapter:
-    """Default no-network prose adapter used by the core package."""
-
-    def bio(self, person: Person, job: Job, company: Company) -> str:
-        return (
-            f"{person.name} is a {job.title} at {company.name}, "
-            f"working in {company.industry}."
-        )
-
 
 __all__ = [
     "AIGenerationAdapter",
@@ -70,8 +51,6 @@ __all__ = [
     "NerEntity",
     "NerSequence",
     "OfflineAIGenerationAdapter",
-    "OfflineProseAdapter",
-    "ProseAdapter",
     "chat_dataset",
     "classification_dataset",
     "instruction_dataset",
