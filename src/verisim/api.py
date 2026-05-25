@@ -6,6 +6,7 @@ from typing import Literal, TypeVar
 
 from pydantic import BaseModel
 
+from verisim.activity import ActivityEvent, ActivityStreamSpec, iter_activity_stream
 from verisim.constants import LEGAL_ENTITY_TYPES_BY_COUNTRY, SIZE_BAND_EMPLOYEE_RANGES
 from verisim.context import ContextGraph, GenerationState
 from verisim.custom_models import CustomModelGenerator, FieldResolver
@@ -229,6 +230,9 @@ class Verisim:
             else:
                 products.append(event.record)  # type: ignore[arg-type]
         return Dataset(people=people, companies=companies, products=products)
+
+    def iter_activity_stream(self, spec: ActivityStreamSpec) -> Iterable[ActivityEvent]:
+        return iter_activity_stream(self, spec)
 
     def _validate_dataset_spec(self, spec: DatasetSpec) -> None:
         if (spec.people or spec.products) and spec.companies == 0:

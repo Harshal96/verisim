@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from csv import DictReader
+from datetime import UTC, datetime
 
 import click
 from typer.testing import CliRunner
@@ -179,6 +180,70 @@ def test_cli_dataset_requires_output_for_file_based_formats():
 
     assert result.exit_code != 0
     assert "--output is required when --format is not json" in _plain_output(result)
+
+
+def test_cli_activity_stream_outputs_seeded_jsonl():
+    args = [
+        "activity-stream",
+        "--people",
+        "1",
+        "--events-per-person",
+        "2",
+        "--seed",
+        "123",
+        "--start-at",
+        "2026-05-04T00:00:00+00:00",
+        "--end-at",
+        "2026-05-08T23:59:00+00:00",
+    ]
+
+    first = runner.invoke(app, args)
+    second = runner.invoke(app, args)
+
+    assert first.exit_code == 0
+    assert first.stdout == second.stdout
+    lines = [json.loads(line) for line in first.stdout.splitlines()]
+    assert len(lines) == 2
+    assert all(line["schema_version"] == "1" for line in lines)
+    assert [line["occurred_at"] for line in lines] == sorted(
+        line["occurred_at"] for line in lines
+    )
+
+
+def test_cli_activity_stream_writes_jsonl_file(tmp_path):
+    output = tmp_path / "events.jsonl"
+
+    result = runner.invoke(
+        app,
+        [
+            "activity-stream",
+            "--people",
+            "1",
+            "--events-per-person",
+            "2",
+            "--seed",
+            "123",
+            "--output",
+            str(output),
+            "--start-at",
+            datetime(2026, 5, 4, tzinfo=UTC).isoformat(),
+            "--end-at",
+            datetime(2026, 5, 8, 23, 59, tzinfo=UTC).isoformat(),
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert result.stdout == ""
+    assert len(output.read_text().splitlines()) == 2
+
+
+def test_cli_activity_stream_requires_kafka_connection_options():
+    result = runner.invoke(app, ["activity-stream", "--sink", "kafka"])
+
+    assert result.exit_code != 0
+    output = _plain_output(result)
+    assert "--bootstrap-servers is required" in output
+    assert "--topic is required" in output
 
 
 def test_cli_record_command_exports_repeated_records_as_csv(tmp_path):
