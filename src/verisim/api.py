@@ -39,10 +39,20 @@ from verisim.models import (
 )
 from verisim.packs import DataPackManager
 from verisim.providers import default_providers
+from verisim.qa import (
+    apply_edge_case,
+    duplicate_count,
+    inject_duplicates,
+    is_qa_mode,
+    near_duplicate,
+    raise_schema_violation,
+)
 from verisim.registry import UniquenessRegistry
 
 T = TypeVar("T")
-ConflictMode = Literal["strict", "repair", "explain"]
+GenerationMode = Literal[
+    "strict", "repair", "explain", "edge_cases", "schema_violations"
+]
 
 
 class Verisim:
@@ -96,12 +106,22 @@ class Verisim:
         self,
         model: type[T],
         context: object | Mapping[str, object] | None = None,
-        mode: ConflictMode = "strict",
+        mode: GenerationMode = "strict",
         profile: StatisticalProfile | None = None,
+        edge_case: str | None = None,
+        violation: str | None = None,
     ) -> T | GenerationDiagnostics:
         active_profile = profile or self.profile
         if isinstance(model, type) and issubclass(model, BaseModel):
             active_profile.validate_null_rates_for_model(model)
+        if is_qa_mode(mode):
+            if context is not None:
+                raise ValueError(f"context is not supported with mode={mode!r}")
+            generated = self.generate(model, profile=active_profile)
+            if mode == "edge_cases":
+                return apply_edge_case(generated, edge_case)
+            raise_schema_violation(model, generated, violation)
+
         facts = self._facts_from_context(context, target=model)
         diagnostics = self._diagnostics(facts)
         if mode == "explain":
@@ -157,10 +177,25 @@ class Verisim:
         count: int,
         context: object | Mapping[str, object] | None = None,
         profile: StatisticalProfile | None = None,
+        mode: GenerationMode = "strict",
+        edge_case: str | None = None,
+        violation: str | None = None,
+        duplicate_percent: int = 0,
     ) -> list[T]:
-        return [
-            self.generate(model, context=context, profile=profile) for _ in range(count)
-        ]  # type: ignore[list-item]
+        records = [
+            self.generate(
+                model,
+                context=context,
+                profile=profile,
+                mode=mode,
+                edge_case=edge_case,
+                violation=violation,
+            )
+            for _ in range(count)
+        ]
+        if duplicate_percent:
+            return inject_duplicates(records, duplicate_percent)  # type: ignore[arg-type]
+        return records  # type: ignore[return-value]
 
     def iter_records(
         self,
@@ -168,61 +203,136 @@ class Verisim:
         count: int | None = None,
         context: object | Mapping[str, object] | None = None,
         profile: StatisticalProfile | None = None,
+        mode: GenerationMode = "strict",
+        edge_case: str | None = None,
+        violation: str | None = None,
     ) -> Iterable[T]:
         produced = 0
         while count is None or produced < count:
             produced += 1
-            yield self.generate(model, context=context, profile=profile)  # type: ignore[misc]
+            yield self.generate(
+                model,
+                context=context,
+                profile=profile,
+                mode=mode,
+                edge_case=edge_case,
+                violation=violation,
+            )  # type: ignore[misc]
 
-    def iter_dataset(self, spec: DatasetSpec) -> Iterable[DatasetEvent]:
+    def iter_dataset(
+        self,
+        spec: DatasetSpec,
+        mode: GenerationMode = "strict",
+        edge_case: str | None = None,
+        violation: str | None = None,
+    ) -> Iterable[DatasetEvent]:
+        if mode == "schema_violations":
+            dataset = self.dataset(spec)
+            raise_schema_violation(Dataset, dataset, violation)
+        if mode == "edge_cases":
+            dataset = self._dataset_from_events(self._iter_dataset_events(spec))
+            dataset = apply_edge_case(dataset, edge_case)
+            yield from self._events_from_dataset(dataset)
+            return
+        yield from self._iter_dataset_events(spec)
+
+    def _iter_dataset_events(self, spec: DatasetSpec) -> Iterable[DatasetEvent]:
         self._validate_dataset_spec(spec)
-        companies = self._company_records_for_spec(spec)
+        unique_companies = self._company_records_for_spec(spec)
+        company_duplicate_count = spec.companies - len(unique_companies)
+        companies = [
+            *unique_companies,
+            *(
+                near_duplicate(
+                    unique_companies[index % len(unique_companies)], index + 1
+                )
+                for index in range(company_duplicate_count)
+            ),
+        ]
         for company in companies:
             yield DatasetEvent(kind="company", record=company)
 
+        people_companies = (
+            unique_companies if spec.people_per_company is not None else companies
+        )
+        people = self._people_records_for_spec(spec, people_companies)
+        if spec.people_duplicate_percent:
+            people = inject_duplicates(people, spec.people_duplicate_percent)
+        for person in people:
+            yield DatasetEvent(kind="person", record=person)
+
+        products = self._product_records_for_spec(spec, companies)
+        if spec.products_duplicate_percent:
+            products = inject_duplicates(products, spec.products_duplicate_percent)
+        for product in products:
+            yield DatasetEvent(kind="product", record=product)
+
+    def _people_records_for_spec(
+        self, spec: DatasetSpec, companies: list[CompanyRecord]
+    ) -> list[PersonRecord]:
+        people: list[PersonRecord] = []
         if spec.people_per_company is not None:
             for company in companies:
                 company_people = spec.people_per_company.get(company.size_band, 0)
                 for _ in range(company_people):
-                    yield DatasetEvent(
-                        kind="person",
-                        record=self.generate(
+                    people.append(
+                        self.generate(
                             PersonRecord,
                             context={"company": company},
                             mode="repair",
                             profile=spec.profile,
-                        ),
+                        )
                     )
         elif companies:
             for index in range(spec.people):
                 company = companies[index % len(companies)]
-                yield DatasetEvent(
-                    kind="person",
-                    record=self.generate(
+                people.append(
+                    self.generate(
                         PersonRecord,
                         context={"company": company},
                         mode="repair",
                         profile=spec.profile,
-                    ),
+                    )
                 )
+        return people
 
+    def _product_records_for_spec(
+        self, spec: DatasetSpec, companies: list[CompanyRecord]
+    ) -> list[ProductRecord]:
+        products: list[ProductRecord] = []
         if companies:
             for index in range(spec.products):
                 company = companies[index % len(companies)]
-                yield DatasetEvent(
-                    kind="product",
-                    record=self.generate(
+                products.append(
+                    self.generate(
                         ProductRecord,
                         context={"company": company},
                         profile=spec.profile,
-                    ),
+                    )
                 )
+        return products
 
-    def dataset(self, spec: DatasetSpec) -> Dataset:
+    def dataset(
+        self,
+        spec: DatasetSpec,
+        mode: GenerationMode = "strict",
+        edge_case: str | None = None,
+        violation: str | None = None,
+    ) -> Dataset:
+        return self._dataset_from_events(
+            self.iter_dataset(
+                spec,
+                mode=mode,
+                edge_case=edge_case,
+                violation=violation,
+            )
+        )
+
+    def _dataset_from_events(self, events: Iterable[DatasetEvent]) -> Dataset:
         companies: list[CompanyRecord] = []
         people: list[PersonRecord] = []
         products: list[ProductRecord] = []
-        for event in self.iter_dataset(spec):
+        for event in events:
             if event.kind == "company":
                 companies.append(event.record)  # type: ignore[arg-type]
             elif event.kind == "person":
@@ -234,13 +344,22 @@ class Verisim:
     def iter_activity_stream(self, spec: ActivityStreamSpec) -> Iterable[ActivityEvent]:
         return iter_activity_stream(self, spec)
 
+    def _events_from_dataset(self, dataset: Dataset) -> Iterable[DatasetEvent]:
+        for company in dataset.companies:
+            yield DatasetEvent(kind="company", record=company)
+        for person in dataset.people:
+            yield DatasetEvent(kind="person", record=person)
+        for product in dataset.products:
+            yield DatasetEvent(kind="product", record=product)
+
     def _validate_dataset_spec(self, spec: DatasetSpec) -> None:
         if (spec.people or spec.products) and spec.companies == 0:
             raise ValueError(
                 "DatasetSpec.companies must be at least 1 when people or products "
                 "are requested"
             )
-        if spec.people_per_company is not None and spec.companies < len(
+        unique_company_count = self._unique_company_count(spec)
+        if spec.people_per_company is not None and unique_company_count < len(
             spec.people_per_company
         ):
             raise ValueError(
@@ -258,9 +377,15 @@ class Verisim:
                     profile=spec.profile,
                 )
             )
-        while len(companies) < spec.companies:
+        while len(companies) < self._unique_company_count(spec):
             companies.append(self.generate(CompanyRecord, profile=spec.profile))
         return companies
+
+    def _unique_company_count(self, spec: DatasetSpec) -> int:
+        return spec.companies - duplicate_count(
+            spec.companies,
+            spec.companies_duplicate_percent,
+        )
 
     def _facts_from_context(
         self, context: object | Mapping[str, object] | None, target: type

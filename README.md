@@ -572,6 +572,54 @@ Conflict modes:
 - `repair`: keep valid context and regenerate dependent conflicting fields.
 - `explain`: return diagnostics without generating a replacement record.
 
+## Testing And QA Modes
+
+Verisim can generate fixtures for validation, parser, and deduplication tests
+without leaving the Pydantic-object contract.
+
+```python
+from pydantic import ValidationError
+
+from verisim import DatasetSpec, PersonRecord, Verisim
+
+v = Verisim(seed=42)
+
+edge_record = v.generate(PersonRecord, mode="edge_cases", edge_case="nul")
+
+try:
+    v.generate(PersonRecord, mode="schema_violations", violation="contact.email")
+except ValidationError:
+    # Pydantic raises a validation error for the intentionally invalid payload.
+    pass
+
+dataset = v.dataset(
+    DatasetSpec(
+        people=100,
+        companies=10,
+        people_duplicate_percent=10,
+    )
+)
+```
+
+`mode="edge_cases"` returns valid model instances with boundary values such as
+empty strings, long strings, null bytes, right-to-left text, negative
+coordinates, and epoch-zero dates. `mode="schema_violations"` builds an invalid
+payload from a valid record and raises a Pydantic validation error; it never
+returns an invalid model instance.
+
+Duplicate injection keeps the requested total count fixed. For example,
+`people=100` with `people_duplicate_percent=10` returns 100 people, including 10
+same-ID near duplicates. JSON and CSV exports preserve those rows. SQL and
+SQLite exports may fail on primary-key or unique constraints, which is useful
+when testing constraint handling.
+
+The same options are available from the CLI:
+
+```bash
+uv run verisim person-record --mode edge_cases --edge-case rtl --seed 42
+uv run verisim dataset --people 100 --companies 10 --people-duplicate-percent 10
+```
+
 ## Locale And Script
 
 Locale describes the cultural/data origin. Output language and script are
@@ -618,6 +666,53 @@ uv run python scripts/build_country_datasets.py --download
 The refresh script downloads archives over HTTPS and verifies each source
 archive against the pinned SHA-256 manifest before rebuilding packaged JSON.
 
+## Framework Integrations
+
+Install only the integration dependencies you need:
+
+```bash
+uv add "verisim[sqlalchemy]"
+uv add "verisim[django]"
+uv add "verisim[pytest]"
+```
+
+SQLAlchemy factories inspect mapped classes and return unsaved instances ready
+for `session.add()`:
+
+```python
+from verisim.integrations.sqlalchemy import verisim_factory
+
+user_factory = verisim_factory(User, seed=123)
+user = user_factory.build()
+
+session.add(user)
+session.commit()
+```
+
+Django factories support unsaved builds and manager-backed creates:
+
+```python
+from verisim.integrations.django import verisim_factory
+
+user_factory = verisim_factory(User, seed=123)
+unsaved_user = user_factory.build()
+saved_user = user_factory.create()
+```
+
+Pytest helpers wrap `@pytest.fixture` with deterministic seeded records and
+normal fixture scopes:
+
+```python
+from verisim.integrations.pytest import verisim_fixture
+
+user = verisim_fixture(User, adapter="sqlalchemy", scope="function", seed=123)
+```
+
+The integrations map common field names such as `email`, `username`,
+`first_name`, `city`, `domain`, and `company_name` from coherent Verisim facts,
+then fall back to framework field types and simple constraints such as choices,
+lengths, nullability, defaults, and required parent relationships.
+
 ## Current Features
 
 - Pydantic v2 domain models for `PersonRecord`, `CompanyRecord`,
@@ -646,6 +741,9 @@ verisim[lite]
 verisim[full]
 verisim[ai]
 verisim[export]
+verisim[sqlalchemy]
+verisim[django]
+verisim[pytest]
 ```
 
 Current state:
@@ -655,6 +753,8 @@ Current state:
 - `ai`: reserved for optional prose-generation adapters.
 - `export`: enables PyArrow and fastavro writers for Parquet, Feather/Arrow,
   and Avro.
+- `sqlalchemy`, `django`, and `pytest`: enable framework-specific factories
+  and fixture helpers.
 
 The core package remains offline and deterministic. AI or external data should
 be opt-in, auditable, and replaceable.

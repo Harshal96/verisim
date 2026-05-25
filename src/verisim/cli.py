@@ -42,6 +42,9 @@ CliExportFormat = Literal[
 CliLayout = Literal["relational", "wide", "both"]
 CliSqlMode = Literal["copy", "insert"]
 CliActivitySink = Literal["jsonl", "kafka"]
+CliGenerationMode = Literal[
+    "strict", "repair", "explain", "edge_cases", "schema_violations"
+]
 
 
 class VerisimTyperGroup(typer.core.TyperGroup):
@@ -145,6 +148,12 @@ def _generate_records(
     compact: Annotated[bool, typer.Option("--compact")] = False,
     export_format: Annotated[CliExportFormat, typer.Option("--format")] = "json",
     batch_size: Annotated[int, typer.Option("--batch-size", min=1)] = 10_000,
+    mode: Annotated[CliGenerationMode, typer.Option("--mode")] = "strict",
+    edge_case: Annotated[str | None, typer.Option("--edge-case")] = None,
+    violation: Annotated[str | None, typer.Option("--violation")] = None,
+    duplicate_percent: Annotated[
+        int, typer.Option("--duplicate-percent", min=0, max=100)
+    ] = 0,
 ) -> None:
     json_indent = None if compact else indent
     verisim = Verisim(
@@ -156,8 +165,26 @@ def _generate_records(
     if export_format != "json":
         if output is None:
             raise typer.BadParameter("--output is required when --format is not json")
+        records = (
+            verisim.records(
+                model,
+                repeat,
+                mode=mode,
+                edge_case=edge_case,
+                violation=violation,
+                duplicate_percent=duplicate_percent,
+            )
+            if duplicate_percent
+            else verisim.iter_records(
+                model,
+                repeat,
+                mode=mode,
+                edge_case=edge_case,
+                violation=violation,
+            )
+        )
         export_records(
-            verisim.iter_records(model, repeat),
+            records,
             model,
             export_format,
             output,
@@ -171,7 +198,15 @@ def _generate_records(
         )
         return
     payload = separator.join(
-        _json(record, json_indent) for record in verisim.records(model, repeat)
+        _json(record, json_indent)
+        for record in verisim.records(
+            model,
+            repeat,
+            mode=mode,
+            edge_case=edge_case,
+            violation=violation,
+            duplicate_percent=duplicate_percent,
+        )
     )
     _write(payload, output)
 
@@ -189,6 +224,12 @@ def _record_command(model: type[BaseModel]):
         compact: Annotated[bool, typer.Option("--compact")] = False,
         export_format: Annotated[CliExportFormat, typer.Option("--format")] = "json",
         batch_size: Annotated[int, typer.Option("--batch-size", min=1)] = 10_000,
+        mode: Annotated[CliGenerationMode, typer.Option("--mode")] = "strict",
+        edge_case: Annotated[str | None, typer.Option("--edge-case")] = None,
+        violation: Annotated[str | None, typer.Option("--violation")] = None,
+        duplicate_percent: Annotated[
+            int, typer.Option("--duplicate-percent", min=0, max=100)
+        ] = 0,
     ) -> None:
         _generate_records(
             model=model,
@@ -203,6 +244,10 @@ def _record_command(model: type[BaseModel]):
             compact=compact,
             export_format=export_format,
             batch_size=batch_size,
+            mode=mode,
+            edge_case=edge_case,
+            violation=violation,
+            duplicate_percent=duplicate_percent,
         )
 
     return command
@@ -230,6 +275,18 @@ def dataset(
     layout: Annotated[CliLayout, typer.Option("--layout")] = "relational",
     sql_mode: Annotated[CliSqlMode, typer.Option("--sql-mode")] = "copy",
     batch_size: Annotated[int, typer.Option("--batch-size", min=1)] = 10_000,
+    mode: Annotated[CliGenerationMode, typer.Option("--mode")] = "strict",
+    edge_case: Annotated[str | None, typer.Option("--edge-case")] = None,
+    violation: Annotated[str | None, typer.Option("--violation")] = None,
+    people_duplicate_percent: Annotated[
+        int, typer.Option("--people-duplicate-percent", min=0, max=100)
+    ] = 0,
+    companies_duplicate_percent: Annotated[
+        int, typer.Option("--companies-duplicate-percent", min=0, max=100)
+    ] = 0,
+    products_duplicate_percent: Annotated[
+        int, typer.Option("--products-duplicate-percent", min=0, max=100)
+    ] = 0,
 ) -> None:
     json_indent = None if compact else indent
     verisim = Verisim(
@@ -238,15 +295,35 @@ def dataset(
         script=script,
         seed=seed,
     )
-    spec = DatasetSpec(people=people, companies=companies, products=products)
+    spec = DatasetSpec(
+        people=people,
+        companies=companies,
+        products=products,
+        people_duplicate_percent=people_duplicate_percent,
+        companies_duplicate_percent=companies_duplicate_percent,
+        products_duplicate_percent=products_duplicate_percent,
+    )
     if export_format == "json":
-        payload = _json(verisim.dataset(spec), json_indent)
+        payload = _json(
+            verisim.dataset(
+                spec,
+                mode=mode,
+                edge_case=edge_case,
+                violation=violation,
+            ),
+            json_indent,
+        )
         _write(payload, output)
         return
     if output is None:
         raise typer.BadParameter("--output is required when --format is not json")
     export_dataset(
-        verisim.iter_dataset(spec),
+        verisim.iter_dataset(
+            spec,
+            mode=mode,
+            edge_case=edge_case,
+            violation=violation,
+        ),
         export_format,
         output,
         layout=layout,
