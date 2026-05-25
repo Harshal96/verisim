@@ -1,4 +1,5 @@
 from examples import (
+    ai_training,
     basic_person,
     company_record,
     context_repair,
@@ -23,6 +24,12 @@ from verisim import (
     ReviewRecord,
     SupportTicketRecord,
     TransactionRecord,
+)
+from verisim.ai import (
+    ChatDataset,
+    ClassificationDataset,
+    InstructionDataset,
+    NerDataset,
 )
 
 
@@ -86,3 +93,24 @@ def test_new_domain_record_examples_return_expected_models():
         record = generate_example(seed=123)
 
         assert isinstance(record, expected_model)
+
+
+def test_ai_training_example_returns_all_dataset_shapes():
+    datasets = ai_training.generate_example(seed=123, count=2)
+
+    assert isinstance(datasets["instructions"], InstructionDataset)
+    assert isinstance(datasets["classification"], ClassificationDataset)
+    assert isinstance(datasets["ner"], NerDataset)
+    assert isinstance(datasets["chat"], ChatDataset)
+    assert len(datasets["instructions"].examples) == 2
+    assert len(datasets["chat"].transcripts) == 2
+
+
+def test_ai_training_example_main_prints_dataset_sections(capsys):
+    ai_training.main()
+
+    output = capsys.readouterr().out
+    assert "## instructions" in output
+    assert "## classification" in output
+    assert "## ner" in output
+    assert "## chat" in output

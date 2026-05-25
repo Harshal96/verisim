@@ -10,9 +10,9 @@ address, job, company, bio, website, and social profiles that all make sense
 together.
 
 > Project status: early prototype. The current package includes the core engine,
-> Pydantic models, a lite data pack, examples, and full test coverage. Large
-> global data packs and AI prose adapters are extension points, not finished
-> product features yet.
+> Pydantic models, a lite data pack, offline AI-training dataset generators,
+> examples, and full test coverage. Large global data packs and provider-backed
+> AI adapters are extension points, not finished product features yet.
 
 ## Why Verisim Exists
 
@@ -241,6 +241,19 @@ Kafka output is available through the optional Kafka extra:
 uv add "verisim[kafka]"
 uv run verisim activity-stream --sink kafka --bootstrap-servers localhost:9092 --topic activity-events --throughput 500
 ```
+
+Generate offline AI-training datasets:
+
+```bash
+uv run verisim ai instruction-pairs --count 100 --seed 7 --format jsonl --output instructions.jsonl
+uv run verisim ai classification --count 100 --label positive=6 --label critical=4 --label-noise 0.05 --format jsonl
+uv run verisim ai ner --count 100 --indent 2
+uv run verisim ai chat --count 25 --min-turns 2 --max-turns 4 --format jsonl
+```
+
+`verisim ai` commands use deterministic offline generation. In Python, pass a
+custom `AIGenerationAdapter` to `verisim.ai` generator functions when you want
+to call an LLM provider from your own credential and retry boundary.
 
 Export a coherent dataset in relational, wide, or combined layouts:
 
@@ -750,7 +763,9 @@ Current state:
 
 - `lite`: implemented as the built-in data pack.
 - `full`: reserved for large regional/global data packs.
-- `ai`: reserved for optional prose-generation adapters.
+- `ai`: includes offline instruction-response, classification, NER, and chat
+  training dataset generators, plus a Python adapter protocol for user-supplied
+  LLM generation.
 - `export`: enables PyArrow and fastavro writers for Parquet, Feather/Arrow,
   and Avro.
 - `sqlalchemy`, `django`, and `pytest`: enable framework-specific factories
@@ -769,12 +784,14 @@ uv run python -m examples.company_record
 uv run python -m examples.context_repair
 uv run python -m examples.dataset_generation
 uv run python -m examples.product_record
+uv run python -m examples.ai_training
 ```
 
 Import them from Python:
 
 ```python
 from examples import (
+    ai_training,
     basic_person,
     company_record,
     context_repair,
@@ -787,6 +804,7 @@ company = company_record.generate_example(seed=123, size_band="startup")
 diagnostics, repaired = context_repair.generate_example(seed=123)
 dataset = dataset_generation.generate_example(seed=123, people=5, companies=2)
 product = product_record.generate_example(seed=123)
+ai_datasets = ai_training.generate_example(seed=123, count=2)
 ```
 
 ## Development

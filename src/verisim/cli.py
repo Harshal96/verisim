@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from collections.abc import Iterable
 from datetime import datetime
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
@@ -15,6 +16,20 @@ from verisim.activity import (
     JsonlActivitySink,
     KafkaActivitySink,
     emit_activity_stream,
+)
+from verisim.ai import (
+    ChatDatasetSpec,
+    ClassificationDatasetSpec,
+    InstructionDatasetSpec,
+    NerDatasetSpec,
+    chat_dataset,
+    classification_dataset,
+    instruction_dataset,
+    iter_chat_transcripts,
+    iter_classification_examples,
+    iter_instruction_pairs,
+    iter_ner_sequences,
+    ner_dataset,
 )
 from verisim.api import Verisim
 from verisim.exporters import export_dataset, export_records
@@ -42,6 +57,7 @@ CliExportFormat = Literal[
 CliLayout = Literal["relational", "wide", "both"]
 CliSqlMode = Literal["copy", "insert"]
 CliActivitySink = Literal["jsonl", "kafka"]
+CliAIFormat = Literal["json", "jsonl"]
 CliGenerationMode = Literal[
     "strict", "repair", "explain", "edge_cases", "schema_violations"
 ]
@@ -55,7 +71,9 @@ class VerisimTyperGroup(typer.core.TyperGroup):
             return super().resolve_command(ctx, args)
         except click.UsageError as error:
             if args and not args[0].startswith("-"):
-                supported = ", ".join(sorted(set(TARGETS) | {"dataset"}))
+                supported = ", ".join(
+                    sorted(set(TARGETS) | {"activity-stream", "ai", "dataset"})
+                )
                 raise click.UsageError(
                     f"unsupported target. Choose one of: {supported}",
                     ctx=ctx,
@@ -68,6 +86,8 @@ app = typer.Typer(
     add_completion=False,
     no_args_is_help=True,
 )
+ai_app = typer.Typer(add_completion=False, no_args_is_help=True)
+app.add_typer(ai_app, name="ai")
 
 TARGETS: dict[str, type[BaseModel]] = {
     "address": Address,
@@ -133,6 +153,15 @@ def _write(text: str, output: Path | None) -> None:
         typer.echo(text)
         return
     output.write_text(f"{text}\n")
+
+
+def _write_lines(lines: Iterable[str], output: Path | None) -> None:
+    text = "\n".join(lines)
+    if output is None:
+        if text:
+            typer.echo(text)
+        return
+    output.write_text(f"{text}\n" if text else "")
 
 
 def _generate_records(
@@ -336,6 +365,159 @@ def dataset(
             "seed": seed,
         },
     )
+
+
+@ai_app.command("instruction-pairs")
+def ai_instruction_pairs(
+    count: Annotated[int, typer.Option("--count", min=0)] = 10,
+    locale: Annotated[str, typer.Option("--locale", "-l")] = "en_US",
+    output_language: Annotated[str, typer.Option("--output-language")] = "en",
+    script: Annotated[str, typer.Option("--script")] = "latin",
+    seed: Annotated[int | None, typer.Option("--seed")] = None,
+    output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
+    indent: Annotated[int | None, typer.Option("--indent", min=0)] = None,
+    compact: Annotated[bool, typer.Option("--compact")] = False,
+    export_format: Annotated[CliAIFormat, typer.Option("--format")] = "json",
+) -> None:
+    verisim = Verisim(
+        locale=locale,
+        output_language=output_language,
+        script=script,
+        seed=seed,
+    )
+    spec = InstructionDatasetSpec(count=count)
+    if export_format == "json":
+        json_indent = None if compact else indent
+        _write(_json(instruction_dataset(verisim, spec), json_indent), output)
+        return
+    _write_lines(
+        (record.model_dump_json() for record in iter_instruction_pairs(verisim, spec)),
+        output,
+    )
+
+
+@ai_app.command("classification")
+def ai_classification(
+    count: Annotated[int, typer.Option("--count", min=0)] = 10,
+    locale: Annotated[str, typer.Option("--locale", "-l")] = "en_US",
+    output_language: Annotated[str, typer.Option("--output-language")] = "en",
+    script: Annotated[str, typer.Option("--script")] = "latin",
+    seed: Annotated[int | None, typer.Option("--seed")] = None,
+    output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
+    indent: Annotated[int | None, typer.Option("--indent", min=0)] = None,
+    compact: Annotated[bool, typer.Option("--compact")] = False,
+    export_format: Annotated[CliAIFormat, typer.Option("--format")] = "json",
+    labels: Annotated[
+        list[str] | None,
+        typer.Option("--label", help="Class distribution entry as label=weight."),
+    ] = None,
+    label_noise: Annotated[
+        float, typer.Option("--label-noise", min=0.0, max=1.0)
+    ] = 0.0,
+) -> None:
+    verisim = Verisim(
+        locale=locale,
+        output_language=output_language,
+        script=script,
+        seed=seed,
+    )
+    spec = ClassificationDatasetSpec(
+        count=count,
+        labels=_parse_label_weights(labels),
+        label_noise=label_noise,
+    )
+    if export_format == "json":
+        json_indent = None if compact else indent
+        _write(_json(classification_dataset(verisim, spec), json_indent), output)
+        return
+    _write_lines(
+        (
+            record.model_dump_json()
+            for record in iter_classification_examples(verisim, spec)
+        ),
+        output,
+    )
+
+
+@ai_app.command("ner")
+def ai_ner(
+    count: Annotated[int, typer.Option("--count", min=0)] = 10,
+    locale: Annotated[str, typer.Option("--locale", "-l")] = "en_US",
+    output_language: Annotated[str, typer.Option("--output-language")] = "en",
+    script: Annotated[str, typer.Option("--script")] = "latin",
+    seed: Annotated[int | None, typer.Option("--seed")] = None,
+    output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
+    indent: Annotated[int | None, typer.Option("--indent", min=0)] = None,
+    compact: Annotated[bool, typer.Option("--compact")] = False,
+    export_format: Annotated[CliAIFormat, typer.Option("--format")] = "json",
+) -> None:
+    verisim = Verisim(
+        locale=locale,
+        output_language=output_language,
+        script=script,
+        seed=seed,
+    )
+    spec = NerDatasetSpec(count=count)
+    if export_format == "json":
+        json_indent = None if compact else indent
+        _write(_json(ner_dataset(verisim, spec), json_indent), output)
+        return
+    _write_lines(
+        (record.model_dump_json() for record in iter_ner_sequences(verisim, spec)),
+        output,
+    )
+
+
+@ai_app.command("chat")
+def ai_chat(
+    count: Annotated[int, typer.Option("--count", min=0)] = 10,
+    locale: Annotated[str, typer.Option("--locale", "-l")] = "en_US",
+    output_language: Annotated[str, typer.Option("--output-language")] = "en",
+    script: Annotated[str, typer.Option("--script")] = "latin",
+    seed: Annotated[int | None, typer.Option("--seed")] = None,
+    output: Annotated[Path | None, typer.Option("--output", "-o")] = None,
+    indent: Annotated[int | None, typer.Option("--indent", min=0)] = None,
+    compact: Annotated[bool, typer.Option("--compact")] = False,
+    export_format: Annotated[CliAIFormat, typer.Option("--format")] = "json",
+    min_turns: Annotated[int, typer.Option("--min-turns", min=1)] = 2,
+    max_turns: Annotated[int, typer.Option("--max-turns", min=1)] = 4,
+) -> None:
+    verisim = Verisim(
+        locale=locale,
+        output_language=output_language,
+        script=script,
+        seed=seed,
+    )
+    spec = ChatDatasetSpec(count=count, min_turns=min_turns, max_turns=max_turns)
+    if export_format == "json":
+        json_indent = None if compact else indent
+        _write(_json(chat_dataset(verisim, spec), json_indent), output)
+        return
+    _write_lines(
+        (record.model_dump_json() for record in iter_chat_transcripts(verisim, spec)),
+        output,
+    )
+
+
+def _parse_label_weights(labels: list[str] | None) -> dict[str, float]:
+    if not labels:
+        return ClassificationDatasetSpec().labels
+    parsed: dict[str, float] = {}
+    for label in labels:
+        if "=" not in label:
+            raise typer.BadParameter("--label must use label=weight")
+        name, weight_text = label.split("=", maxsplit=1)
+        name = name.strip()
+        if not name:
+            raise typer.BadParameter("--label names must not be blank")
+        try:
+            weight = float(weight_text)
+        except ValueError as error:
+            raise typer.BadParameter("--label weights must be numeric") from error
+        if weight <= 0:
+            raise typer.BadParameter("--label weights must be positive")
+        parsed[name] = weight
+    return parsed
 
 
 def _parse_datetime_option(value: str | None, option_name: str) -> datetime | None:
