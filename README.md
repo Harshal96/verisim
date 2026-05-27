@@ -149,6 +149,65 @@ uv add "verisim[ai]"
 uv add "verisim[export]"
 ```
 
+### Developer Experience Helpers
+
+Use the full data tier when you want broader locale coverage:
+
+```bash
+uv add "verisim[full]"
+```
+
+```python
+from verisim import PersonRecord, Verisim
+
+record = Verisim(
+    locale="es_ES",
+    script="latin",
+    data_pack="full",
+    seed=7,
+).generate(PersonRecord)
+```
+
+Infer provider intent from an existing schema:
+
+```python
+from pydantic import BaseModel
+
+from verisim import Verisim, generate_from_schema, infer_providers
+
+
+class Customer(BaseModel):
+    email: str
+    first_name: str
+    company_name: str
+
+
+plan = infer_providers(Customer)
+record = Verisim(seed=7).generate(Customer)
+
+payload = generate_from_schema(
+    {
+        "type": "object",
+        "required": ["email"],
+        "properties": {"email": {"type": "string", "format": "email"}},
+    },
+    seed=7,
+)
+```
+
+Export a synthetic data contract:
+
+```python
+from verisim import PersonRecord, export_json_schema
+
+schema = export_json_schema(PersonRecord)
+```
+
+```bash
+uv run verisim schema person-record --output person.schema.json
+uv run verisim schema person-record --dialect openapi-3.1 --output openapi.json
+```
+
 ## Development From Source
 
 Clone the repository and install the development dependencies:

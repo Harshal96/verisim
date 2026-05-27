@@ -1,0 +1,62 @@
+{
+  "name": "Spain",
+  "code": "ES",
+  "calling_code": "+34",
+  "street_names": [
+    "Gran Via",
+    "Mayor",
+    "Alcala",
+    "Diagonal",
+    "Serrano"
+  ],
+  "street_suffixes": [
+    "Calle",
+    "Avenida",
+    "Plaza",
+    "Paseo"
+  ],
+  "address_templates": [
+    "{suffix} {street_name}, {building_number}",
+    "{street_name} {suffix}, {building_number}"
+  ],
+  "regions": [
+    {
+      "name": "Comunidad de Madrid",
+      "code": "MD",
+      "cities": [
+        {
+          "name": "Madrid",
+          "postal_codes": [
+            "28001",
+            "28004",
+            "28013"
+          ],
+          "area_codes": [
+            "91"
+          ],
+          "latitude": 40.4168,
+          "longitude": -3.7038
+        }
+      ]
+    },
+    {
+      "name": "Catalonia",
+      "code": "CT",
+      "cities": [
+        {
+          "name": "Barcelona",
+          "postal_codes": [
+            "08001",
+            "08002",
+            "08003"
+          ],
+          "area_codes": [
+            "93"
+          ],
+          "latitude": 41.3874,
+          "longitude": 2.1686
+        }
+      ]
+    }
+  ]
+}

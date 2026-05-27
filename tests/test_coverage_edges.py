@@ -28,6 +28,7 @@ from verisim import (
 from verisim.ai import OfflineProseAdapter, ProseAdapter
 from verisim.context import ContextGraph, GenerationState
 from verisim.data import IndustryData, LiteDataPack, NameData
+from verisim.full_data import FullDataPack
 from verisim.models import SocialAccount
 from verisim.packs import DataPackManager
 from verisim.providers import (
@@ -389,10 +390,11 @@ def test_model_helpers_cover_fallback_phone_website_and_social_handles():
 def test_data_pack_manager_lists_and_rejects_packs():
     manager = DataPackManager()
 
-    assert manager.available() == ("lite",)
+    assert manager.available() == ("full", "lite")
     assert isinstance(manager.load(), LiteDataPack)
+    assert isinstance(manager.load("full"), FullDataPack)
     with pytest.raises(ValueError, match="unknown data pack"):
-        manager.load("full")
+        manager.load("unknown")
 
 
 def test_industry_lookup_falls_back_when_company_industry_is_unknown():

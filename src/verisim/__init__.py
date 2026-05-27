@@ -37,7 +37,21 @@ from verisim.errors import (
     ProfileValidationError,
     UnsupportedModelError,
 )
-from verisim.exporters import export_dataset, export_records
+from verisim.exporters import (
+    SchemaDialect,
+    export_dataset,
+    export_json_schema,
+    export_openapi_components,
+    export_records,
+    write_json_schema,
+    write_openapi_components,
+)
+from verisim.introspection import (
+    FieldPlan,
+    ProviderPlan,
+    generate_from_schema,
+    infer_providers,
+)
 from verisim.masking import (
     MaskingConfig,
     MaskingResult,
@@ -132,6 +146,7 @@ __all__ = [
     "FieldContext",
     "FieldResolver",
     "FieldRule",
+    "FieldPlan",
     "FundingStage",
     "GenerationResolutionError",
     "GenerationDiagnostics",
@@ -171,6 +186,7 @@ __all__ = [
     "ProductPlan",
     "ProductRecord",
     "ProductType",
+    "ProviderPlan",
     "PurchasePayload",
     "RealClock",
     "ProfileValidationError",
@@ -179,6 +195,7 @@ __all__ = [
     "ReviewSentiment",
     "RevenueRange",
     "SeasonalityProfile",
+    "SchemaDialect",
     "SizeBand",
     "SocialAccount",
     "Socials",
@@ -197,7 +214,13 @@ __all__ = [
     "WeightedChoice",
     "emit_activity_stream",
     "export_dataset",
+    "export_json_schema",
+    "export_openapi_components",
     "export_records",
+    "generate_from_schema",
+    "infer_providers",
     "mask_dataframe",
     "mask_sql_table",
+    "write_json_schema",
+    "write_openapi_components",
 ]

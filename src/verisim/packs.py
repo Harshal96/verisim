@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 from verisim.data import LiteDataPack
+from verisim.full_data import FullDataPack
 
 
 class DataPackManager:
     """Versioned data-pack lookup surface for lite/full package growth."""
 
     def __init__(self) -> None:
-        self._packs = {"lite": LiteDataPack}
+        self._packs = {"full": FullDataPack, "lite": LiteDataPack}
 
     def available(self) -> tuple[str, ...]:
         return tuple(sorted(self._packs))

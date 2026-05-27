@@ -18,7 +18,14 @@ from verisim.distributions import (
     is_nullable_annotation,
 )
 from verisim.errors import GenerationResolutionError, ProfileValidationError
+from verisim.models import CompanyRecord, PersonRecord
 from verisim.registry import UniquenessRegistry
+from verisim.semantics import (
+    FieldRequest,
+    SemanticSources,
+    UnsupportedSemanticFieldError,
+    semantic_value,
+)
 
 NoneType = type(None)
 T = TypeVar("T", bound=BaseModel)
@@ -56,6 +63,7 @@ class CustomModelGenerator:
         sampler: StatisticalSampler,
         profile: StatisticalProfile,
         resolvers: Sequence[FieldResolver],
+        semantic_records: Mapping[str, object] | None = None,
         max_depth: int = 8,
     ) -> None:
         self.random = random
@@ -64,6 +72,8 @@ class CustomModelGenerator:
         self.sampler = sampler
         self.profile = profile
         self.resolvers = tuple(resolvers)
+        self._semantic_records: dict[str, object] = dict(semantic_records or {})
+        self._semantic_counters: dict[str, int] = {}
         self.max_depth = max_depth
 
     def generate(self, model: type[T]) -> T:
@@ -126,7 +136,57 @@ class CustomModelGenerator:
         if default is not PydanticUndefined:
             return default
 
+        semantic = self._generate_semantic_value(path, field_name, annotation)
+        if semantic is not UNRESOLVED:
+            return self._validate(path, annotation, semantic)
+
         return self._generate_annotation(path, field_name, annotation, depth)
+
+    def _generate_semantic_value(
+        self, path: str, field_name: str, annotation: object
+    ) -> object:
+        try:
+            return semantic_value(
+                FieldRequest(
+                    name=field_name,
+                    model_name=path.rsplit(".", 1)[0] or "CustomModel",
+                    python_type=annotation if isinstance(annotation, type) else None,
+                    nullable=is_nullable_annotation(annotation),
+                ),
+                SemanticSources(
+                    person_record=self._person_record,
+                    company_record=self._company_record,
+                    next_int=self._next_semantic_int,
+                    random=self.random,
+                ),
+            )
+        except UnsupportedSemanticFieldError:
+            return UNRESOLVED
+
+    def _person_record(self) -> PersonRecord:
+        record = self._semantic_records.get("person_record")
+        if record is None:
+            record = self._generate_annotation(
+                "semantic.person_record", "person_record", PersonRecord, 0
+            )
+            self._semantic_records["person_record"] = record
+        assert isinstance(record, PersonRecord)
+        return record
+
+    def _company_record(self) -> CompanyRecord:
+        record = self._semantic_records.get("company_record")
+        if record is None:
+            record = self._generate_annotation(
+                "semantic.company_record", "company_record", CompanyRecord, 0
+            )
+            self._semantic_records["company_record"] = record
+        assert isinstance(record, CompanyRecord)
+        return record
+
+    def _next_semantic_int(self, key: str) -> int:
+        value = self._semantic_counters.get(key, 0) + 1
+        self._semantic_counters[key] = value
+        return value
 
     def _generate_annotation(
         self,
