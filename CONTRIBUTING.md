@@ -96,3 +96,23 @@ Before opening a pull request:
 
 For larger changes, open an issue or draft PR first so the design can be shaped
 before implementation gets too far ahead.
+
+## Publishing Releases
+
+The release workflow tests and builds a version tag, checks that the tag matches
+`pyproject.toml`, and publishes through PyPI trusted publishing after approval of
+the `pypi` environment. Both tag pushes and published GitHub releases trigger it;
+if creating a GitHub release also creates its tag, cancel one duplicate run before
+approving publication.
+
+If publication fails before uploading any files, merge the workflow fix into
+`main` and retry the existing tag:
+
+```bash
+gh workflow run release.yml --ref main -f tag=v0.2.0
+```
+
+The manual retry uses the workflow from `main`, but both its test and build jobs
+check out the specified tag. It validates the package version and preserves the
+existing tag. PyPI does not allow replacing uploaded files, so check the release
+on PyPI before retrying a failed upload.
