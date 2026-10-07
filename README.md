@@ -11,7 +11,7 @@ together.
 
 > Project status: early prototype. The current package includes the core engine,
 > Pydantic models, a lite data pack, offline AI-training dataset generators,
-> examples, and full test coverage. Large global data packs and provider-backed
+> examples, and a regression test suite. Large global data packs and provider-backed
 > AI adapters are extension points, not finished product features yet.
 
 ## Why Verisim Exists
@@ -288,6 +288,26 @@ Generate a chronological activity stream for synthetic people:
 uv run verisim activity-stream --people 10 --events-per-person 100 --seed 7
 uv run verisim activity-stream --people 10 --events-per-person 100 --sink jsonl --output activity.jsonl --throughput 250
 ```
+
+Generate a portable API fixture bundle from OpenAPI, Django/Pydantic models,
+and a caller-owned branch catalog and test runner:
+
+```bash
+uv add 'verisim[fixtures,django]'
+verisim fixtures --config fixtures.yaml --format sqlite --output ./out/fixtures.sqlite
+```
+
+The config example and generic catalog contract are in
+[the fixture API guide](docs/fixtures/README.md) and the
+[runnable example](examples/api_fixtures/README.md). The configured
+branch adapter returns operation-scoped target IDs; the runner performs one
+isolated measured API invocation per candidate and returns observed IDs. The
+exact optimizer chooses the fewest replayable scenarios within that finite,
+measured candidate pool. A successful bundle is published only after complete
+declared-scope coverage, an optimality proof within the pool, and replay
+verification. Its JSON process manifest keeps coverage, optimization, replay,
+and application checks independent. SQLite is a portable bundle format, not an
+application database or Django fixture file.
 
 Activity stream events are emitted as JSON lines with a stable envelope
 containing schema version, global sequence, per-person sequence, actor,
@@ -802,6 +822,8 @@ lengths, nullability, defaults, and required parent relationships.
   copies.
 - Strict, repair, and explain modes for existing context.
 - Importable and runnable `examples` package.
+- API branch fixture generation from OpenAPI and configured model sources,
+  measured by a caller-owned runner and exported as JSON, CSV, or SQLite.
 - 90%+ measured coverage across `src/verisim` and `examples`.
 
 ## Package Shape
@@ -880,24 +902,24 @@ uv run --extra dev python -B -m pytest -q
 Format and sort imports:
 
 ```bash
-uv run --extra dev autoflake src examples tests
-uv run --extra dev isort src examples tests
-uv run --extra dev black src examples tests
+uv run --extra dev python -m autoflake src examples tests scripts
+uv run --extra dev python -m isort src examples tests scripts
+uv run --extra dev python -m black src examples tests scripts
 ```
 
 Lint:
 
 ```bash
-uv run --extra dev ruff check src examples tests
+uv run --extra dev ruff check src examples tests scripts
 ```
 
 Check formatting and cleanup without rewriting files:
 
 ```bash
-uv run --extra dev autoflake --check src examples tests
-uv run --extra dev isort --check-only src examples tests
-uv run --extra dev black --check src examples tests
-uv run --extra dev ruff check src examples tests
+uv run --extra dev python -m autoflake --check src examples tests scripts
+uv run --extra dev python -m isort --check-only src examples tests scripts
+uv run --extra dev python -m black --check src examples tests scripts
+uv run --extra dev ruff check src examples tests scripts
 ```
 
 Run the 100% per-file coverage gate:

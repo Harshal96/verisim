@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "source_revision": "demo-revision",
+  "scope": {
+    "operations": ["createOrder"],
+    "complete": true
+  },
+  "targets": [
+    {
+      "id": "createOrder.customer_active.true",
+      "operation_id": "createOrder",
+      "arc": {
+        "file": "shop/orders/api.py",
+        "from_line": 42,
+        "to_line": 43
+      },
+      "constraints": [
+        {
+          "path": "fixtures.customer.is_active",
+          "op": "eq",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "createOrder.customer_active.false",
+      "operation_id": "createOrder",
+      "arc": {
+        "file": "shop/orders/api.py",
+        "from_line": 42,
+        "to_line": 45
+      },
+      "constraints": [
+        {
+          "path": "fixtures.customer.is_active",
+          "op": "eq",
+          "value": false
+        }
+      ]
+    }
+  ]
+}

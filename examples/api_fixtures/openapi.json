@@ -1,0 +1,47 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Orders example",
+    "version": "1"
+  },
+  "paths": {
+    "/orders": {
+      "post": {
+        "operationId": "createOrder",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "customer_id",
+                  "quantity"
+                ],
+                "properties": {
+                  "customer_id": {
+                    "type": "integer"
+                  },
+                  "quantity": {
+                    "type": "integer"
+                  },
+                  "note": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          }
+        }
+      }
+    }
+  }
+}

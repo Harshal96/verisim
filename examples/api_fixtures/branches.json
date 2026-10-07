@@ -1,0 +1,372 @@
+{
+  "version": 1,
+  "source_revision": "example-v1",
+  "scope": {
+    "complete": true,
+    "operations": [
+      "createOrder"
+    ]
+  },
+  "targets": [
+    {
+      "id": "quantity.true",
+      "operation_id": "createOrder",
+      "arc": {
+        "file": "api.py",
+        "from_line": 9,
+        "to_line": 10
+      },
+      "constraints": [
+        {
+          "path": "request.body.quantity",
+          "op": "eq",
+          "value": 0
+        },
+        {
+          "path": "request.body.customer_id",
+          "op": "eq",
+          "value": 1001
+        },
+        {
+          "path": "actor.admin",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "path": "environment.inventory_online",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "path": "fixtures.customer.is_active",
+          "op": "eq",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "quantity.false",
+      "operation_id": "createOrder",
+      "arc": {
+        "file": "api.py",
+        "from_line": 9,
+        "to_line": 11
+      },
+      "constraints": [
+        {
+          "path": "request.body.quantity",
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "path": "request.body.customer_id",
+          "op": "eq",
+          "value": 1001
+        },
+        {
+          "path": "actor.admin",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "path": "environment.inventory_online",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "path": "fixtures.customer.is_active",
+          "op": "eq",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "auth.true",
+      "operation_id": "createOrder",
+      "arc": {
+        "file": "api.py",
+        "from_line": 11,
+        "to_line": 12
+      },
+      "constraints": [
+        {
+          "path": "request.body.quantity",
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "path": "request.body.customer_id",
+          "op": "eq",
+          "value": 1001
+        },
+        {
+          "path": "actor.admin",
+          "op": "eq",
+          "value": false
+        },
+        {
+          "path": "environment.inventory_online",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "path": "fixtures.customer.is_active",
+          "op": "eq",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "auth.false",
+      "operation_id": "createOrder",
+      "arc": {
+        "file": "api.py",
+        "from_line": 11,
+        "to_line": 13
+      },
+      "constraints": [
+        {
+          "path": "request.body.quantity",
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "path": "request.body.customer_id",
+          "op": "eq",
+          "value": 1001
+        },
+        {
+          "path": "actor.admin",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "path": "environment.inventory_online",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "path": "fixtures.customer.is_active",
+          "op": "eq",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "inventory.true",
+      "operation_id": "createOrder",
+      "arc": {
+        "file": "api.py",
+        "from_line": 13,
+        "to_line": 14
+      },
+      "constraints": [
+        {
+          "path": "request.body.quantity",
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "path": "request.body.customer_id",
+          "op": "eq",
+          "value": 1001
+        },
+        {
+          "path": "actor.admin",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "path": "environment.inventory_online",
+          "op": "eq",
+          "value": false
+        },
+        {
+          "path": "fixtures.customer.is_active",
+          "op": "eq",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "inventory.false",
+      "operation_id": "createOrder",
+      "arc": {
+        "file": "api.py",
+        "from_line": 13,
+        "to_line": 15
+      },
+      "constraints": [
+        {
+          "path": "request.body.quantity",
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "path": "request.body.customer_id",
+          "op": "eq",
+          "value": 1001
+        },
+        {
+          "path": "actor.admin",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "path": "environment.inventory_online",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "path": "fixtures.customer.is_active",
+          "op": "eq",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "found.true",
+      "operation_id": "createOrder",
+      "arc": {
+        "file": "api.py",
+        "from_line": 16,
+        "to_line": 17
+      },
+      "constraints": [
+        {
+          "path": "request.body.quantity",
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "path": "request.body.customer_id",
+          "op": "eq",
+          "value": 1001
+        },
+        {
+          "path": "actor.admin",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "path": "environment.inventory_online",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "path": "fixtures.customer",
+          "op": "exists",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "found.false",
+      "operation_id": "createOrder",
+      "arc": {
+        "file": "api.py",
+        "from_line": 16,
+        "to_line": 18
+      },
+      "constraints": [
+        {
+          "path": "request.body.quantity",
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "path": "request.body.customer_id",
+          "op": "eq",
+          "value": 1001
+        },
+        {
+          "path": "actor.admin",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "path": "environment.inventory_online",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "path": "fixtures.customer.is_active",
+          "op": "eq",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "active.true",
+      "operation_id": "createOrder",
+      "arc": {
+        "file": "api.py",
+        "from_line": 18,
+        "to_line": 19
+      },
+      "constraints": [
+        {
+          "path": "request.body.quantity",
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "path": "request.body.customer_id",
+          "op": "eq",
+          "value": 1001
+        },
+        {
+          "path": "actor.admin",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "path": "environment.inventory_online",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "path": "fixtures.customer.is_active",
+          "op": "eq",
+          "value": false
+        }
+      ]
+    },
+    {
+      "id": "active.false",
+      "operation_id": "createOrder",
+      "arc": {
+        "file": "api.py",
+        "from_line": 18,
+        "to_line": 20
+      },
+      "constraints": [
+        {
+          "path": "request.body.quantity",
+          "op": "eq",
+          "value": 1
+        },
+        {
+          "path": "request.body.customer_id",
+          "op": "eq",
+          "value": 1001
+        },
+        {
+          "path": "actor.admin",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "path": "environment.inventory_online",
+          "op": "eq",
+          "value": true
+        },
+        {
+          "path": "fixtures.customer.is_active",
+          "op": "eq",
+          "value": true
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,131 @@
+{
+  "version": 1,
+  "project": {
+    "root": ".",
+    "python_paths": [
+      "."
+    ],
+    "revision": "example-v1"
+  },
+  "sources": {
+    "openapi": {
+      "files": [
+        "openapi.json"
+      ]
+    },
+    "django": {
+      "settings_module": "settings",
+      "models": {
+        "customer": "models:Customer"
+      }
+    },
+    "pydantic": {
+      "models": {
+        "create_order": "schemas:CreateOrder"
+      }
+    }
+  },
+  "operations": {
+    "createOrder": {
+      "request_model": "create_order",
+      "fixture_models": [
+        "customer"
+      ],
+      "bindings": {
+        "request.body.customer_id": "fixtures.customer.id"
+      }
+    }
+  },
+  "branches": {
+    "adapter": "verisim.fixtures.adapters.file:load_branches",
+    "options": {
+      "path": "branches.json"
+    }
+  },
+  "execution": {
+    "runner": "support:run_scenario"
+  },
+  "generation": {
+    "seed": 42,
+    "clock": "2026-10-07T00:00:00Z",
+    "candidate_limit": 50,
+    "candidates": [
+      {
+        "operation_id": "createOrder",
+        "values": {
+          "request.body.quantity": 0,
+          "request.body.customer_id": 1001,
+          "actor.admin": true,
+          "environment.inventory_online": true,
+          "fixtures.customer.is_active": true
+        },
+        "expectations": {
+          "status": 422
+        }
+      },
+      {
+        "operation_id": "createOrder",
+        "values": {
+          "request.body.quantity": 1,
+          "request.body.customer_id": 1001,
+          "actor.admin": false,
+          "environment.inventory_online": true,
+          "fixtures.customer.is_active": true
+        },
+        "expectations": {
+          "status": 403
+        }
+      },
+      {
+        "operation_id": "createOrder",
+        "values": {
+          "request.body.quantity": 1,
+          "request.body.customer_id": 1001,
+          "actor.admin": true,
+          "environment.inventory_online": false,
+          "fixtures.customer.is_active": true
+        },
+        "expectations": {
+          "status": 503
+        }
+      },
+      {
+        "operation_id": "createOrder",
+        "values": {
+          "request.body.quantity": 1,
+          "request.body.customer_id": 1001,
+          "actor.admin": true,
+          "environment.inventory_online": true,
+          "fixtures.customer.is_active": false
+        },
+        "expectations": {
+          "status": 409
+        }
+      },
+      {
+        "operation_id": "createOrder",
+        "values": {
+          "request.body.quantity": 1,
+          "request.body.customer_id": 1001,
+          "actor.admin": true,
+          "environment.inventory_online": true,
+          "fixtures.customer.is_active": true
+        },
+        "expectations": {
+          "status": 201
+        }
+      }
+    ]
+  },
+  "minimization": {
+    "unit": "scenario",
+    "method": "exact_set_cover",
+    "require_full_coverage": true,
+    "timeout_seconds": 5
+  },
+  "output": {
+    "format": "json",
+    "path": "out/fixtures.json",
+    "report": "out/report.json"
+  }
+}

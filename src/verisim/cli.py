@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 from collections.abc import Iterable
 from datetime import datetime
@@ -166,6 +167,76 @@ def callback(
     ] = False,
 ) -> None:
     _ = version_option
+
+
+@app.command("fixtures")
+def fixtures_command(
+    config_path: Annotated[
+        Path, typer.Option("--config", help="Fixture generation YAML or JSON config.")
+    ],
+    output_format: Annotated[
+        Literal["json", "csv", "sqlite"] | None,
+        typer.Option("--format", help="Override the configured bundle format."),
+    ] = None,
+    output: Annotated[
+        Path | None, typer.Option("--output", help="Override the fixture bundle path.")
+    ] = None,
+) -> None:
+    """Generate the fewest replayable scenarios covering the branch catalog."""
+    from verisim.fixtures.config import load_config
+    from verisim.fixtures.pipeline import generate_fixtures
+
+    report_path: str | None = None
+    try:
+        fixture_config = load_config(config_path)
+        report_path = str(fixture_config.output.report)
+        updates: dict[str, object] = {}
+        if output_format is not None:
+            updates["format"] = output_format
+        if output is not None:
+            updates["path"] = (
+                output if output.is_absolute() else fixture_config.project.root / output
+            )
+        if updates:
+            fixture_config = fixture_config.model_copy(
+                update={"output": fixture_config.output.model_copy(update=updates)}
+            )
+        result = generate_fixtures(fixture_config)
+        typer.echo(json.dumps(result.to_dict(), sort_keys=True))
+        exit_codes = {
+            "complete": 0,
+            "checks_failed": 4,
+            "coverage_incomplete": 3,
+            "optimization_incomplete": 3,
+            "replay_failed": 3,
+            "publication_failed": 5,
+        }
+        if result.status not in exit_codes:
+            raise typer.Exit(2)
+        if exit_codes[result.status]:
+            raise typer.Exit(exit_codes[result.status])
+    except typer.Exit:
+        raise
+    except Exception as error:
+        typer.echo(f"fixture generation failed: {error}", err=True)
+        typer.echo(
+            json.dumps(
+                {
+                    "status": "error",
+                    "run_id": None,
+                    "fixture_path": None,
+                    "report_path": report_path,
+                    "fixture_sha256": None,
+                    "scenario_count": 0,
+                    "coverage_complete": False,
+                    "optimal_within_pool": False,
+                    "replay_verified": False,
+                    "checks_passed": False,
+                },
+                sort_keys=True,
+            )
+        )
+        raise typer.Exit(2) from error
 
 
 def _json(model: BaseModel, indent: int | None) -> str:
