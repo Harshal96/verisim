@@ -1,0 +1,54 @@
+# Configuration template: replace the application and callback references.
+# example-shop, its Python modules, and its API source locations are placeholders.
+version: 1
+
+project:
+  root: ./example-shop
+  python_paths:
+    - .
+  revision: "${SOURCE_REVISION}"
+
+sources:
+  openapi:
+    files:
+      - contracts/openapi.yaml
+  django:
+    settings_module: shop.settings.test
+    models:
+      customer: shop.customers.models:Customer
+  pydantic:
+    models:
+      create_order: shop.orders.schemas:CreateOrder
+
+operations:
+  createOrder:
+    request_model: create_order
+    fixture_models:
+      - customer
+    bindings:
+      request.body.customer_id: fixtures.customer.id
+
+branches:
+  adapter: fixture_support.company_graph:load_branches
+  options:
+    endpoint: "${KNOWLEDGE_GRAPH_URL}"
+    token_env: KNOWLEDGE_GRAPH_TOKEN
+
+execution:
+  runner: fixture_support.api:run_scenario
+
+generation:
+  seed: 42
+  clock: "2026-10-07T00:00:00Z"
+  candidate_limit: 500
+
+minimization:
+  unit: scenario
+  method: exact_set_cover
+  require_full_coverage: true
+  timeout_seconds: 30
+
+output:
+  format: json
+  path: ./out/fixtures.json
+  report: ./out/coverage.json

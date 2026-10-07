@@ -35,24 +35,24 @@ uv run --extra dev python -B -m pytest -q
 Run the formatting and cleanup stack:
 
 ```bash
-uv run --extra dev autoflake src examples tests
-uv run --extra dev isort src examples tests
-uv run --extra dev black src examples tests
+uv run --extra dev python -m autoflake src examples tests scripts
+uv run --extra dev python -m isort src examples tests scripts
+uv run --extra dev python -m black src examples tests scripts
 ```
 
 Run linting:
 
 ```bash
-uv run --extra dev ruff check src examples tests
+uv run --extra dev ruff check src examples tests scripts
 ```
 
 Check formatting and cleanup without rewriting files:
 
 ```bash
-uv run --extra dev autoflake --check src examples tests
-uv run --extra dev isort --check-only src examples tests
-uv run --extra dev black --check src examples tests
-uv run --extra dev ruff check src examples tests
+uv run --extra dev python -m autoflake --check src examples tests scripts
+uv run --extra dev python -m isort --check-only src examples tests scripts
+uv run --extra dev python -m black --check src examples tests scripts
+uv run --extra dev ruff check src examples tests scripts
 ```
 
 Run the coverage gate:

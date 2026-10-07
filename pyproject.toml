@@ -1,6 +1,6 @@
 [project]
 name = "verisim"
-version = "0.1.0"
+version = "0.2.0"
 description = "Context-aware synthetic data generation for coherent Pydantic domain models."
 readme = "README.md"
 authors = [{ name = "Harshal Parekh" }]
@@ -38,6 +38,9 @@ Issues = "https://github.com/Harshal96/verisim/issues"
 lite = []
 full = []
 ai = []
+fixtures = [
+  "PyYAML>=6,<7",
+]
 sqlalchemy = [
   "sqlalchemy>=2,<3",
 ]
@@ -58,6 +61,7 @@ masking = [
   "pandas>=2.2,<3",
 ]
 dev = [
+  "PyYAML>=6,<7",
   "autoflake>=2.3",
   "black>=25.0",
   "coverage[toml]>=7.5",
