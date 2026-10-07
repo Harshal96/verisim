@@ -1,6 +1,6 @@
 [project]
 name = "verisim"
-version = "0.2.0"
+version = "0.2.1"
 description = "Context-aware synthetic data generation for coherent Pydantic domain models."
 readme = "README.md"
 authors = [{ name = "Harshal Parekh" }]
@@ -22,8 +22,10 @@ classifiers = [
   "Topic :: Software Development :: Testing",
 ]
 dependencies = [
+  "click>=8.1,<9",
   "pydantic>=2.7,<3",
-  "typer>=0.12,<1",
+  # The custom CLI group uses external Click classes; Typer 0.26 vendors Click.
+  "typer>=0.12,<0.26",
 ]
 
 [project.scripts]

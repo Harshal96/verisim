@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1
+
+- Declare Click directly and constrain Typer to versions compatible with the
+  custom CLI group so new installations can run the command-line interface.
+- Smoke test an installed wheel with fresh dependencies before PyPI publishing.
+- Update the publisher for Core Metadata 2.5 and allow retries of existing tags.
+
 ## 0.2.0
 
 - Generate replayable API fixture scenarios from Swagger/OpenAPI contracts and

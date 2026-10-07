@@ -1100,9 +1100,10 @@ wheels = [
 
 [[package]]
 name = "verisim"
-version = "0.2.0"
+version = "0.2.1"
 source = { editable = "." }
 dependencies = [
+    { name = "click" },
     { name = "pydantic" },
     { name = "typer" },
 ]
@@ -1147,6 +1148,7 @@ sqlalchemy = [
 requires-dist = [
     { name = "autoflake", marker = "extra == 'dev'", specifier = ">=2.3" },
     { name = "black", marker = "extra == 'dev'", specifier = ">=25.0" },
+    { name = "click", specifier = ">=8.1,<9" },
     { name = "confluent-kafka", marker = "extra == 'kafka'", specifier = ">=2.5" },
     { name = "coverage", extras = ["toml"], marker = "extra == 'dev'", specifier = ">=7.5" },
     { name = "django", marker = "extra == 'dev'", specifier = ">=4.2,<6" },
@@ -1164,6 +1166,6 @@ requires-dist = [
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.14" },
     { name = "sqlalchemy", marker = "extra == 'dev'", specifier = ">=2,<3" },
     { name = "sqlalchemy", marker = "extra == 'sqlalchemy'", specifier = ">=2,<3" },
-    { name = "typer", specifier = ">=0.12,<1" },
+    { name = "typer", specifier = ">=0.12,<0.26" },
 ]
 provides-extras = ["lite", "full", "ai", "fixtures", "sqlalchemy", "django", "pytest", "export", "kafka", "masking", "dev"]
