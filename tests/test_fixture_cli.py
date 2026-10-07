@@ -5,6 +5,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from click import unstyle
 from typer.testing import CliRunner
 
 from verisim.cli import app
@@ -30,5 +31,6 @@ def test_fixtures_command_is_available_to_another_process():
         env={**__import__("os").environ, "PYTHONPATH": "src"},
     )
     assert process.returncode == 0
-    assert "--config" in process.stdout
-    assert "--format" in process.stdout
+    help_text = unstyle(process.stdout)
+    assert "--config" in help_text
+    assert "--format" in help_text
