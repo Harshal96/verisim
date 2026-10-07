@@ -13,6 +13,13 @@ cd verisim
 uv sync --extra dev
 ```
 
+For an editable install while using Verisim from another local project, point
+at your clone:
+
+```bash
+uv add --editable ../verisim
+```
+
 Verisim targets Python 3.11 and newer. The package uses `uv` for local
 development commands and dependency locking.
 
