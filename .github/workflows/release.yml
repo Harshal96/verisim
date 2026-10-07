@@ -87,6 +87,14 @@ jobs:
       - name: Check distribution metadata
         run: uv run --with twine python -m twine check dist/*
 
+      - name: Smoke test installed wheel
+        run: |
+          smoke_env="$RUNNER_TEMP/verisim-release-smoke"
+          uv venv "$smoke_env"
+          uv pip install --python "$smoke_env/bin/python" --index-url https://pypi.org/simple dist/*.whl
+          "$smoke_env/bin/python" -I -m verisim.cli --version
+          "$smoke_env/bin/python" -I -m verisim.cli fixtures --help
+
       - name: Upload distribution artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
